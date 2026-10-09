@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { DriverEntry, WingetUpgrade, VendorLink, WuDriverUpdate, GpuDriverStatus, ProblemDevice, ComponentCheck } from '../../../shared/types'
 import { cached } from '../lib/cache'
+import { useI18n } from '../lib/i18n'
 import { useToast } from '../components/Toast'
 
 export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.Element {
+  const { t } = useI18n()
   const [links, setLinks] = useState<VendorLink[]>([])
   const [installed, setInstalled] = useState<DriverEntry[] | null>(null)
   const [gpuStatus, setGpuStatus] = useState<GpuDriverStatus[] | null>(null)
@@ -55,9 +57,9 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
       const res = await window.api.searchDriverUpdates()
       setWu(res)
       setWuSelected(new Set(res.map((u) => u.id)))
-      if (res.length === 0) toast('Aucun pilote en attente côté Windows Update — tout est à jour de ce côté ✔', 'success')
+      if (res.length === 0) toast(t('drv.wuNone'), 'success')
     } catch {
-      toast('Recherche Windows Update impossible', 'error')
+      toast(t('drv.wuError'), 'error')
     }
     setWuSearching(false)
   }
@@ -66,7 +68,7 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
     if (wuSelected.size === 0) return
     setWuInstalling(true)
     const res = await window.api.installDriverUpdates([...wuSelected])
-    toast(res.message || (res.ok ? `${res.installed} pilote(s) installé(s) ✔` : 'Échec'), res.ok ? 'success' : 'error')
+    toast(res.message || (res.ok ? `${res.installed} OK ✔` : 'KO'), res.ok ? 'success' : 'error')
     if (res.rebootRequired) setRebootNeeded(true)
     if (res.ok) await searchWu()
     setWuInstalling(false)
@@ -88,25 +90,22 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
 
   return (
     <>
-      <h1>Pilotes</h1>
-      <p className="subtitle">
-        Uniquement des sources officielles : Windows Update (pilotes signés Microsoft), winget et les sites
-        constructeurs. Jamais de pilotes de sites tiers douteux.
-      </p>
+      <h1>{t('drv.title')}</h1>
+      <p className="subtitle">{t('drv.subtitle')}</p>
 
       {rebootNeeded && (
         <div className="banner ok">
-          ✅ Pilotes installés — un redémarrage est nécessaire pour les activer.
+          {t('drv.rebootBanner')}
           <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => window.api.rebootNow()}>
-            Redémarrer maintenant
+            {t('app.rebootNow')}
           </button>
         </div>
       )}
 
-      <div className="section-title">🎮 Carte graphique — vérification officielle</div>
+      <div className="section-title">{t('drv.gpuSection')}</div>
       {gpuStatus === null && (
         <div className="card" style={{ marginBottom: 14 }}>
-          <span className="spinner" /> <span className="muted">Vérification auprès du constructeur…</span>
+          <span className="spinner" /> <span className="muted">{t('drv.gpuChecking')}</span>
         </div>
       )}
       {gpuStatus?.map((g) => (
@@ -118,8 +117,8 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
           <div className="row-info">
             <div className="row-title">
               {g.model}
-              {g.upToDate === false && <span className="badge old">MAJ dispo : {g.latest}</span>}
-              {g.upToDate === true && <span className="badge okay">À jour ({g.installed})</span>}
+              {g.upToDate === false && <span className="badge old">{t('drv.updAvail', g.latest ?? '')}</span>}
+              {g.upToDate === true && <span className="badge okay">{t('drv.upToDate', g.installed ?? '')}</span>}
             </div>
             <div className="row-desc">{g.note}</div>
             {nvBusy && g.vendor === 'nvidia' && (
@@ -131,24 +130,24 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
           {g.vendor === 'nvidia' && g.upToDate === false ? (
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn primary" disabled={nvBusy} onClick={() => installNvidia(g.downloadUrl)}>
-                {nvBusy ? <span className="spinner" /> : '⬇'} Installer ({nvProgress > 0 && nvBusy ? `${nvProgress}%` : 'direct NVIDIA'})
+                {nvBusy ? <span className="spinner" /> : '⬇'} {t('drv.install')} ({nvProgress > 0 && nvBusy ? `${nvProgress}%` : t('drv.directNvidia')})
               </button>
-              <button className="btn" onClick={() => window.api.openExternal('https://www.nvidia.com/fr-fr/drivers/')}>
-                Page ↗
+              <button className="btn" onClick={() => window.api.openExternal('https://www.nvidia.com/drivers/')}>
+                {t('drv.page')}
               </button>
             </div>
           ) : g.vendor === 'intel' ? (
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn primary" disabled={dsaBusy} onClick={installDsa}>
-                {dsaBusy ? <span className="spinner" /> : '⬇'} Installer Intel DSA
+                {dsaBusy ? <span className="spinner" /> : '⬇'} {t('drv.installDsa')}
               </button>
               <button className="btn" onClick={() => window.api.openExternal(g.downloadUrl)}>
-                Page ↗
+                {t('drv.page')}
               </button>
             </div>
           ) : (
             <button className="btn" onClick={() => window.api.openExternal(g.downloadUrl)}>
-              {g.upToDate === false ? '⬇ Télécharger' : 'Vérifier ↗'}
+              {g.upToDate === false ? t('drv.download') : t('drv.verify')}
             </button>
           )}
         </div>
@@ -156,35 +155,27 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
 
       {problems && problems.length > 0 && (
         <>
-          <div className="section-title">⚠ Périphériques avec problème de pilote</div>
+          <div className="section-title">{t('drv.problems')}</div>
           {problems.map((p) => (
             <div className="row stagger" key={p.deviceId} style={{ borderLeft: '3px solid var(--red)' }}>
               <div className="row-info">
                 <div className="row-title">
                   {p.name}
-                  {p.missingDriver && <span className="badge old">Pilote manquant</span>}
+                  {p.missingDriver && <span className="badge old">{t('drv.missingDriver')}</span>}
                 </div>
-                <div className="row-desc">
-                  {p.problem} (code {p.code}) — lance une recherche Windows Update ci-dessous ou va sur le site de ton
-                  constructeur.
-                </div>
+                <div className="row-desc">{t('drv.problemDesc', p.problem, p.code)}</div>
               </div>
             </div>
           ))}
         </>
       )}
-      {problems && problems.length === 0 && (
-        <div className="banner ok">✅ Aucun périphérique en erreur — tous tes composants ont un pilote fonctionnel.</div>
-      )}
+      {problems && problems.length === 0 && <div className="banner ok">{t('drv.noProblems')}</div>}
 
-      <div className="section-title">🧩 Check-up par composant (sources officielles fabricant)</div>
-      <div className="banner info">
-        💡 Règle gamer : les pilotes se prennent sur le site officiel de CHAQUE composant — Windows Update croit souvent
-        être à jour alors que le fabricant a déjà sorti plus récent.
-      </div>
+      <div className="section-title">{t('drv.checklist')}</div>
+      <div className="banner info">{t('drv.checklistTip')}</div>
       {checklist === null && (
         <div className="card" style={{ marginBottom: 14 }}>
-          <span className="spinner" /> <span className="muted">Inventaire des composants…</span>
+          <span className="spinner" /> <span className="muted">{t('drv.inventory')}</span>
         </div>
       )}
       {checklist
@@ -203,14 +194,14 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
             <div className="row-title">
               <span className="badge reboot">{c.component}</span>
               {c.name}
-              {c.status === 'update' && <span className="badge old">MAJ dispo</span>}
-              {c.status === 'probably-update' && <span className="badge admin">Probablement obsolète</span>}
-              {c.status === 'ok' && <span className="badge okay">À jour</span>}
+              {c.status === 'update' && <span className="badge old">{t('drv.majAvail')}</span>}
+              {c.status === 'probably-update' && <span className="badge admin">{t('drv.probablyOld')}</span>}
+              {c.status === 'ok' && <span className="badge okay">{t('drv.ok')}</span>}
             </div>
             <div className="row-desc">
               {c.installed && (
                 <>
-                  Installé : <b>{c.installed}</b>
+                  {t('drv.installed')} : <b>{c.installed}</b>
                   {c.installedDate && ` (${c.installedDate})`} —{' '}
                 </>
               )}
@@ -218,28 +209,26 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
             </div>
           </div>
           <button className="btn" onClick={() => window.api.openExternal(c.officialUrl)}>
-            Page officielle ↗
+            {t('drv.official')}
           </button>
         </div>
       ))}
 
-      <div className="section-title">🔄 Mise à jour automatique (Windows Update)</div>
-      {!isAdmin && (
-        <div className="banner warn">⚠ L’installation automatique de pilotes nécessite de lancer l’app en administrateur.</div>
-      )}
+      <div className="section-title">{t('drv.wuSection')}</div>
+      {!isAdmin && <div className="banner warn">{t('drv.wuAdmin')}</div>}
       <div className="toolbar">
         <button className="btn primary" disabled={wuSearching || wuInstalling} onClick={searchWu}>
-          {wuSearching ? <span className="spinner" /> : '🔍'} Rechercher les pilotes manquants
+          {wuSearching ? <span className="spinner" /> : '🔍'} {t('drv.wuSearch')}
         </button>
         {wu && wu.length > 0 && (
           <button className="btn primary" disabled={wuInstalling || !isAdmin || wuSelected.size === 0} onClick={installWu}>
-            {wuInstalling ? <span className="spinner" /> : '⬇'} Installer la sélection ({wuSelected.size})
+            {wuInstalling ? <span className="spinner" /> : '⬇'} {t('drv.wuInstall', wuSelected.size)}
           </button>
         )}
       </div>
       {wuSearching && (
         <div className="card" style={{ marginBottom: 14 }}>
-          <span className="spinner" /> <span className="muted">Interrogation de Windows Update (peut prendre 1-2 min)…</span>
+          <span className="spinner" /> <span className="muted">{t('drv.wuSearching')}</span>
         </div>
       )}
       {wu?.map((u) => (
@@ -261,13 +250,13 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
           <div className="row-info">
             <div className="row-title">{u.title}</div>
             <div className="row-desc">
-              {u.provider} {u.driverClass && `· ${u.driverClass}`} {u.sizeMB > 0 && `· ${u.sizeMB} Mo`}
+              {u.provider} {u.driverClass && `· ${u.driverClass}`} {u.sizeMB > 0 && `· ${u.sizeMB} MB`}
             </div>
           </div>
         </div>
       ))}
 
-      <div className="section-title">🏷 Sources officielles pour ta machine</div>
+      <div className="section-title">{t('drv.linksSection')}</div>
       {links.map((l) => (
         <div className="row stagger" key={l.url}>
           <div className="row-info">
@@ -275,18 +264,18 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
             <div className="row-desc">{l.why}</div>
           </div>
           <button className="btn" onClick={() => window.api.openExternal(l.url)}>
-            Ouvrir ↗
+            {t('drv.open')}
           </button>
         </div>
       ))}
 
-      <div className="section-title">📦 Logiciels & outils constructeurs (winget)</div>
+      <div className="section-title">{t('drv.wingetSection')}</div>
       <div className="toolbar">
         <button className="btn" onClick={loadWinget}>
-          🔍 Chercher les mises à jour winget
+          {t('drv.wingetSearch')}
         </button>
       </div>
-      {winget !== null && winget.length === 0 && <div className="banner ok">✅ Tous tes logiciels winget sont à jour.</div>}
+      {winget !== null && winget.length === 0 && <div className="banner ok">{t('drv.wingetAllOk')}</div>}
       {winget?.map((w) => (
         <div className="row stagger" key={w.id}>
           <div className="row-info">
@@ -296,26 +285,26 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
             </div>
           </div>
           <button className="btn" disabled={wingetBusy != null} onClick={() => upgradeOne(w.id)}>
-            {wingetBusy === w.id ? <span className="spinner" /> : 'Mettre à jour'}
+            {wingetBusy === w.id ? <span className="spinner" /> : t('drv.update')}
           </button>
         </div>
       ))}
 
-      <div className="section-title">🗂 Pilotes installés (les plus vieux en premier)</div>
+      <div className="section-title">{t('drv.installedSection')}</div>
       {installed === null && (
         <div className="card">
-          <span className="spinner" /> <span className="muted">Scan des pilotes…</span>
+          <span className="spinner" /> <span className="muted">{t('drv.scanning')}</span>
         </div>
       )}
       {installed && (
         <table>
           <thead>
             <tr>
-              <th>Périphérique</th>
-              <th>Fournisseur</th>
-              <th>Version</th>
+              <th>{t('drv.device')}</th>
+              <th>{t('drv.provider')}</th>
+              <th>{t('drv.version')}</th>
               <th>Date</th>
-              <th>Âge</th>
+              <th>{t('drv.age')}</th>
             </tr>
           </thead>
           <tbody>
@@ -329,9 +318,9 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
                   {d.ageYears == null ? (
                     '—'
                   ) : d.ageYears >= 2 ? (
-                    <span className="badge old">{d.ageYears} ans</span>
+                    <span className="badge old">{d.ageYears} {t('drv.years')}</span>
                   ) : (
-                    <span className="badge okay">{d.ageYears < 1 ? 'récent' : `${d.ageYears} an(s)`}</span>
+                    <span className="badge okay">{d.ageYears < 1 ? t('drv.recent') : `${d.ageYears} ${t('drv.years')}`}</span>
                   )}
                 </td>
               </tr>

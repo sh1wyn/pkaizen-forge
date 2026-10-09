@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { NetInfo, PingResult, DnsBench } from '../../../shared/types'
+import { useI18n } from '../lib/i18n'
 import { useToast } from '../components/Toast'
 
 const pingColor = (ms: number | null): string => {
@@ -11,6 +12,7 @@ const pingColor = (ms: number | null): string => {
 }
 
 export default function Network(): React.JSX.Element {
+  const { t } = useI18n()
   const [info, setInfo] = useState<NetInfo | null>(null)
   const [pings, setPings] = useState<PingResult[] | null>(null)
   const [dns, setDns] = useState<DnsBench[] | null>(null)
@@ -31,59 +33,52 @@ export default function Network(): React.JSX.Element {
       const d = await window.api.dnsBench()
       setDns(d)
     } catch {
-      toast('Erreur pendant le test réseau', 'error')
+      toast(t('net.error'), 'error')
     }
     setTesting(false)
   }
 
   return (
     <>
-      <h1>Réseau</h1>
-      <p className="subtitle">
-        Teste ta latence et ton jitter — c’est ça qui fait un ping stable en jeu, pas le débit.
-      </p>
+      <h1>{t('net.title')}</h1>
+      <p className="subtitle">{t('net.subtitle')}</p>
 
       {info && (
         <div className="grid" style={{ marginBottom: 18 }}>
           <div className="card stagger">
-            <h3>Connexion</h3>
+            <h3>{t('net.connection')}</h3>
             <div className="big">{info.type}</div>
             <div className="sub">{info.iface}</div>
           </div>
           {info.speedMbps != null && info.speedMbps > 0 && (
             <div className="card stagger">
-              <h3>Vitesse de lien</h3>
+              <h3>{t('net.linkSpeed')}</h3>
               <div className="big">{info.speedMbps >= 1000 ? `${info.speedMbps / 1000} Gb/s` : `${info.speedMbps} Mb/s`}</div>
-              <div className="sub">Négociée avec le routeur — pas ton débit internet.</div>
+              <div className="sub">{t('net.linkSpeedSub')}</div>
             </div>
           )}
         </div>
       )}
 
-      {info?.type === 'Wi-Fi' && (
-        <div className="banner warn">
-          📶 Tu es en Wi-Fi : pour le jeu en ligne, un câble Ethernet divise le jitter par 5-10. Si impossible, utilise
-          le 5 GHz près du routeur.
-        </div>
-      )}
+      {info?.type === 'Wi-Fi' && <div className="banner warn">{t('net.wifiWarn')}</div>}
 
       <div className="toolbar">
         <button className="btn primary" disabled={testing} onClick={runTest}>
-          {testing ? <span className="spinner" /> : '📡'} Lancer le test (ping + DNS)
+          {testing ? <span className="spinner" /> : '📡'} {t('net.runTest')}
         </button>
       </div>
 
       {pings && (
         <>
-          <div className="section-title">🎯 Latence & stabilité</div>
+          <div className="section-title">{t('net.latency')}</div>
           {pings.map((p) => (
             <div className="row stagger" key={p.host} style={{ borderLeft: `3px solid ${pingColor(p.avgMs)}` }}>
               <div className="row-info">
                 <div className="row-title">{p.label}</div>
                 <div className="row-desc">
                   {p.avgMs == null
-                    ? 'Injoignable (le pare-feu bloque peut-être le ping)'
-                    : `min ${p.minMs} ms · max ${p.maxMs} ms · jitter ${p.jitterMs} ms${p.loss > 0 ? ` · ${p.loss}% de perte ⚠` : ''}`}
+                    ? t('net.unreachable')
+                    : `min ${p.minMs} ms · max ${p.maxMs} ms · jitter ${p.jitterMs} ms${p.loss > 0 ? ` · ${p.loss}% ${t('net.loss')} ⚠` : ''}`}
                 </div>
               </div>
               <div className="big" style={{ color: pingColor(p.avgMs), whiteSpace: 'nowrap' }}>
@@ -91,18 +86,13 @@ export default function Network(): React.JSX.Element {
               </div>
             </div>
           ))}
-          {pings.some((p) => (p.jitterMs ?? 0) > 15) && (
-            <div className="banner warn">
-              ⚠ Jitter élevé détecté : ping instable en jeu. Causes courantes : Wi-Fi, box surchargée (streaming en
-              parallèle), ou câble défectueux.
-            </div>
-          )}
+          {pings.some((p) => (p.jitterMs ?? 0) > 15) && <div className="banner warn">{t('net.jitterWarn')}</div>}
         </>
       )}
 
       {dns && (
         <>
-          <div className="section-title">🌍 Vitesse DNS (résolution des serveurs de jeu)</div>
+          <div className="section-title">{t('net.dns')}</div>
           {dns.map((d) => {
             const best = Math.min(...dns.filter((x) => x.ms != null).map((x) => x.ms!))
             return (
@@ -110,17 +100,14 @@ export default function Network(): React.JSX.Element {
                 <div className="row-info">
                   <div className="row-title">
                     {d.server}
-                    {d.ms != null && d.ms === best && <span className="badge okay">Le plus rapide</span>}
+                    {d.ms != null && d.ms === best && <span className="badge okay">{t('net.fastest')}</span>}
                   </div>
                 </div>
                 <div className="big" style={{ whiteSpace: 'nowrap' }}>{d.ms == null ? '—' : `${d.ms} ms`}</div>
               </div>
             )
           })}
-          <div className="banner info">
-            💡 Si un DNS public est nettement plus rapide que ton « DNS actuel », tu peux le configurer dans Paramètres
-            → Réseau → ta connexion → Attribution du serveur DNS. Gain : connexions aux serveurs plus rapides.
-          </div>
+          <div className="banner info">{t('net.dnsTip')}</div>
         </>
       )}
     </>

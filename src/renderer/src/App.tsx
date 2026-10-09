@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ToastProvider } from './components/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { I18nProvider, useI18n, type StrKey, type Lang } from './lib/i18n'
 import Dashboard from './pages/Dashboard'
 import Optimize from './pages/Optimize'
 import Clean from './pages/Clean'
@@ -12,18 +13,19 @@ import Benchmark from './pages/Benchmark'
 
 type Page = 'dashboard' | 'optimize' | 'clean' | 'drivers' | 'startup' | 'network' | 'report' | 'benchmark'
 
-const NAV: { id: Page; label: string; icon: string }[] = [
-  { id: 'dashboard', label: 'Diagnostic', icon: '📊' },
-  { id: 'optimize', label: 'Optimiser', icon: '⚡' },
-  { id: 'benchmark', label: 'Benchmark', icon: '🧪' },
-  { id: 'clean', label: 'Nettoyage', icon: '🧹' },
-  { id: 'drivers', label: 'Pilotes', icon: '🔧' },
-  { id: 'startup', label: 'Démarrage', icon: '🚀' },
-  { id: 'network', label: 'Réseau', icon: '🌐' },
-  { id: 'report', label: 'Rapport', icon: '📋' }
+const NAV: { id: Page; labelKey: StrKey; icon: string }[] = [
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: '📊' },
+  { id: 'optimize', labelKey: 'nav.optimize', icon: '⚡' },
+  { id: 'benchmark', labelKey: 'nav.benchmark', icon: '🧪' },
+  { id: 'clean', labelKey: 'nav.clean', icon: '🧹' },
+  { id: 'drivers', labelKey: 'nav.drivers', icon: '🔧' },
+  { id: 'startup', labelKey: 'nav.startup', icon: '🚀' },
+  { id: 'network', labelKey: 'nav.network', icon: '🌐' },
+  { id: 'report', labelKey: 'nav.report', icon: '📋' }
 ]
 
-export default function App(): React.JSX.Element {
+function Shell(): React.JSX.Element {
+  const { lang, setLang, t } = useI18n()
   const [page, setPage] = useState<Page>('dashboard')
   const [isAdmin, setIsAdmin] = useState(false)
   const [pendingReboot, setPendingReboot] = useState(false)
@@ -34,35 +36,51 @@ export default function App(): React.JSX.Element {
   }, [])
 
   return (
-    <ToastProvider>
+    <>
       <aside className="sidebar">
         <div className="logo">⚒ Pkaizen Forge</div>
+        <div className="lang-switch">
+          <select
+            className="lang-select"
+            value={lang}
+            title={t('common.lang')}
+            onChange={(e) => setLang(e.target.value as Lang)}
+          >
+            <option value="en">🇬🇧 English</option>
+            <option value="fr">🇫🇷 Français</option>
+            <option value="es">🇪🇸 Español</option>
+            <option value="ru">🇷🇺 Русский</option>
+            <option value="de">🇩🇪 Deutsch</option>
+            <option value="pt">🇵🇹 Português</option>
+            <option value="it">🇮🇹 Italiano</option>
+          </select>
+        </div>
         {NAV.map((n) => (
           <button
             key={n.id}
             className={`nav-btn ${page === n.id ? 'active' : ''}`}
             onClick={() => setPage(n.id)}
           >
-            <span>{n.icon}</span> {n.label}
+            <span>{n.icon}</span> {t(n.labelKey)}
           </button>
         ))}
         <div className="sidebar-footer">
-          {isAdmin ? '🛡 Mode administrateur' : '👤 Mode utilisateur'}
+          {isAdmin ? t('sidebar.admin') : t('sidebar.user')}
           <br />
-          100% réversible · compatible anticheat (Vanguard, EAC, BattlEye)
+          {t('sidebar.tagline')}
         </div>
       </aside>
-      <main className="main" key={page}>
+      <main className="main" key={`${page}-${lang}`}>
         <div className="page-anim">
           {pendingReboot && (
             <div className="banner info">
-              🔄 Un redémarrage est en attente pour finaliser des changements.
+              {t('app.rebootPending')}
               <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => window.api.rebootNow()}>
-                Redémarrer maintenant
+                {t('app.rebootNow')}
               </button>
             </div>
           )}
-          <ErrorBoundary key={page}>
+          <ErrorBoundary key={`${page}-${lang}`}>
             {page === 'dashboard' && <Dashboard />}
             {page === 'optimize' && <Optimize isAdmin={isAdmin} />}
             {page === 'clean' && <Clean isAdmin={isAdmin} />}
@@ -74,6 +92,16 @@ export default function App(): React.JSX.Element {
           </ErrorBoundary>
         </div>
       </main>
-    </ToastProvider>
+    </>
+  )
+}
+
+export default function App(): React.JSX.Element {
+  return (
+    <I18nProvider>
+      <ToastProvider>
+        <Shell />
+      </ToastProvider>
+    </I18nProvider>
   )
 }

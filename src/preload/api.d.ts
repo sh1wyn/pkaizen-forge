@@ -27,6 +27,7 @@ import type {
 declare global {
   interface Window {
     api: {
+      setLang: (lang: string) => Promise<void>
       getSystemReport: () => Promise<SystemReport>
       getLiveStats: () => Promise<LiveStats>
       getInsights: () => Promise<Insight[]>

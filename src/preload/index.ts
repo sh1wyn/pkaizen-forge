@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 const api = {
+  setLang: (lang: string) => ipcRenderer.invoke('app:setLang', lang),
   getSystemReport: () => ipcRenderer.invoke('system:report'),
   getLiveStats: () => ipcRenderer.invoke('system:live'),
   getInsights: () => ipcRenderer.invoke('system:insights'),

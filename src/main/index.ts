@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { ps } from './system/powershell'
+import { setLang, type Lang } from './system/i18n'
 import { getSystemReport, getLiveStats } from './system/sysinfo'
 import { getInsights } from './system/analyzer'
 import { getDetailedInfo } from './system/details'
@@ -106,6 +107,7 @@ function createWindow(): void {
 }
 
 function registerIpc(): void {
+  ipcMain.handle('app:setLang', (_e, l: Lang) => setLang(l))
   handle('system:report', () => getSystemReport())
   handle('system:live', () => getLiveStats())
   handle('system:insights', () => getInsights())

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { DiskBenchResult } from '../../../shared/types'
+import { useI18n } from '../lib/i18n'
 import { useToast } from '../components/Toast'
 
 interface BenchRun {
@@ -110,6 +111,7 @@ function runGpuBench(canvas: HTMLCanvasElement): Promise<number> {
 }
 
 export default function Benchmark(): React.JSX.Element {
+  const { t } = useI18n()
   const [phase, setPhase] = useState<'idle' | 'cpu1' | 'cpuN' | 'disk' | 'gpu'>('idle')
   const [result, setResult] = useState<BenchRun | null>(null)
   const [history, setHistory] = useState<BenchRun[]>([])
@@ -152,9 +154,9 @@ export default function Benchmark(): React.JSX.Element {
       const newHistory = [runData, ...history].slice(0, 10)
       setHistory(newHistory)
       localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory))
-      toast('Benchmark terminé ✔', 'success')
+      toast(t('bench.done'), 'success')
     } catch {
-      toast('Erreur pendant le benchmark', 'error')
+      toast(t('bench.error'), 'error')
     }
     setPhase('idle')
   }
@@ -163,28 +165,22 @@ export default function Benchmark(): React.JSX.Element {
   const delta = prev && result ? Math.round(((result.score - prev.score) / prev.score) * 100) : null
 
   const PHASE_LABEL: Record<string, string> = {
-    cpu1: '🧮 Test CPU — 1 cœur…',
-    cpuN: '🧮 Test CPU — tous les cœurs…',
-    disk: '💾 Test disque (lecture/écriture 256 Mo)…',
-    gpu: '🎨 Test GPU (rendu WebGL)…'
+    cpu1: t('bench.cpu1'),
+    cpuN: t('bench.cpuN'),
+    disk: t('bench.disk'),
+    gpu: t('bench.gpu')
   }
 
   return (
     <>
-      <h1>Benchmark</h1>
-      <p className="subtitle">
-        Mesure CPU, disque et GPU en ~15 secondes. Lance-le avant puis après tes optimisations pour voir le gain réel —
-        et compare ton score avec tes potes.
-      </p>
+      <h1>{t('bench.title')}</h1>
+      <p className="subtitle">{t('bench.subtitle')}</p>
 
-      <div className="banner info">
-        💡 Pour un résultat fiable : ferme les jeux et les gros programmes avant de lancer. L\u2019indice GPU mesure le
-        rendu de l\u2019app (comparable entre runs et entre PC), pas les FPS d\u2019un jeu précis.
-      </div>
+      <div className="banner info">{t('bench.tip')}</div>
 
       <div className="toolbar">
         <button className="btn primary" disabled={phase !== 'idle'} onClick={run}>
-          {phase !== 'idle' ? <span className="spinner" /> : '🧪'} Lancer le benchmark
+          {phase !== 'idle' ? <span className="spinner" /> : '🧪'} {t('bench.run')}
         </button>
         {phase !== 'idle' && <span className="muted">{PHASE_LABEL[phase]}</span>}
       </div>
@@ -197,44 +193,44 @@ export default function Benchmark(): React.JSX.Element {
             <div className="score-ring">
               <div className="score-num">{result.score}</div>
               <div style={{ flex: 1 }}>
-                <div className="big">Indice Pkaizen</div>
+                <div className="big">{t('bench.index')}</div>
                 <div className="sub">
                   {delta != null
                     ? delta > 0
-                      ? `+${delta}% par rapport au run précédent 📈`
+                      ? t('bench.betterPrev', delta)
                       : delta < 0
-                        ? `${delta}% par rapport au run précédent 📉 (vérifie ce qui tourne en fond)`
-                        : 'Identique au run précédent'
-                    : 'Premier run — relance après tes optimisations pour comparer.'}
+                        ? t('bench.worsePrev', delta)
+                        : t('bench.samePrev')
+                    : t('bench.firstRun')}
                 </div>
               </div>
             </div>
           </div>
           <div className="grid">
             <div className="card stagger">
-              <h3>CPU — 1 cœur</h3>
+              <h3>{t('bench.cpuSingle')}</h3>
               <div className="big">{result.cpuSingle} pts</div>
-              <div className="sub">Déterminant pour les FPS dans la plupart des jeux.</div>
+              <div className="sub">{t('bench.cpuSingleSub')}</div>
             </div>
             <div className="card stagger">
-              <h3>CPU — multi-cœurs</h3>
+              <h3>{t('bench.cpuMulti')}</h3>
               <div className="big">{result.cpuMulti} pts</div>
-              <div className="sub">{navigator.hardwareConcurrency} threads utilisés.</div>
+              <div className="sub">{navigator.hardwareConcurrency} {t('bench.threadsUsed')}</div>
             </div>
             <div className="card stagger">
-              <h3>Disque — écriture</h3>
-              <div className="big">{result.writeMBps} Mo/s</div>
-              <div className="sub">{result.writeMBps > 1000 ? 'Niveau NVMe ✔' : result.writeMBps > 350 ? 'Niveau SSD SATA' : 'Lent — HDD ou SSD saturé ⚠'}</div>
+              <h3>{t('bench.write')}</h3>
+              <div className="big">{result.writeMBps} MB/s</div>
+              <div className="sub">{result.writeMBps > 1000 ? t('bench.nvme') : result.writeMBps > 350 ? t('bench.sata') : t('bench.slow')}</div>
             </div>
             <div className="card stagger">
-              <h3>Disque — lecture</h3>
-              <div className="big">{result.readMBps} Mo/s</div>
-              <div className="sub">Impacte les temps de chargement des jeux.</div>
+              <h3>{t('bench.read')}</h3>
+              <div className="big">{result.readMBps} MB/s</div>
+              <div className="sub">{t('bench.readSub')}</div>
             </div>
             <div className="card stagger">
-              <h3>GPU — rendu</h3>
+              <h3>{t('bench.gpuRender')}</h3>
               <div className="big">{result.gpuFps} FPS</div>
-              <div className="sub">Scène WebGL lourde — comparable entre runs/PC.</div>
+              <div className="sub">{t('bench.gpuSub')}</div>
             </div>
           </div>
         </>
@@ -242,16 +238,16 @@ export default function Benchmark(): React.JSX.Element {
 
       {history.length > 0 && (
         <>
-          <div className="section-title">📜 Historique (10 derniers runs)</div>
+          <div className="section-title">{t('bench.history')}</div>
           <table>
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Indice</th>
+                <th>{t('bench.date')}</th>
+                <th>{t('bench.index')}</th>
                 <th>CPU 1c</th>
                 <th>CPU multi</th>
-                <th>Écriture</th>
-                <th>Lecture</th>
+                <th>{t('bench.write')}</th>
+                <th>{t('bench.read')}</th>
                 <th>GPU</th>
               </tr>
             </thead>

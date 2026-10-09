@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react'
 import type { SystemReport, LiveStats, Insight, DetailedInfo } from '../../../shared/types'
 import { cached } from '../lib/cache'
+import { useI18n } from '../lib/i18n'
 import { useToast } from '../components/Toast'
 
-const SEV_STYLE: Record<Insight['severity'], { icon: string; color: string; label: string }> = {
-  critical: { icon: '🔴', color: 'var(--red)', label: 'Critique' },
-  warn: { icon: '🟠', color: 'var(--orange)', label: 'À corriger' },
-  info: { icon: '🔵', color: 'var(--accent2)', label: 'Bon à savoir' },
-  ok: { icon: '🟢', color: 'var(--green)', label: 'OK' }
+const SEV_STYLE: Record<Insight['severity'], { icon: string; color: string }> = {
+  critical: { icon: '🔴', color: 'var(--red)' },
+  warn: { icon: '🟠', color: 'var(--orange)' },
+  info: { icon: '🔵', color: 'var(--accent2)' },
+  ok: { icon: '🟢', color: 'var(--green)' }
 }
 
 export default function Dashboard(): React.JSX.Element {
+  const { t } = useI18n()
   const [report, setReport] = useState<SystemReport | null>(null)
   const [live, setLive] = useState<LiveStats | null>(null)
   const [insights, setInsights] = useState<Insight[] | null>(null)
@@ -18,7 +20,7 @@ export default function Dashboard(): React.JSX.Element {
   const toast = useToast()
 
   useEffect(() => {
-    cached('report', () => window.api.getSystemReport()).then(setReport).catch(() => toast('Erreur lecture matériel', 'error'))
+    cached('report', () => window.api.getSystemReport()).then(setReport).catch(() => toast(t('dash.errHw'), 'error'))
     cached('insights', () => window.api.getInsights()).then(setInsights).catch(() => setInsights([]))
     cached('details', () => window.api.getDetailedInfo()).then(setDetails).catch(() => setDetails(null))
     let stop = false
@@ -32,33 +34,32 @@ export default function Dashboard(): React.JSX.Element {
       }
     }
     poll()
-    const t = setInterval(poll, 2500)
+    const t2 = setInterval(poll, 2500)
     return () => {
       stop = true
-      clearInterval(t)
+      clearInterval(t2)
     }
-  }, [toast])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <>
-      <h1>Diagnostic</h1>
-      <p className="subtitle">
-        Analyse complète de ta machine — matériel, charge en direct et points faibles détectés.
-      </p>
+      <h1>{t('dash.title')}</h1>
+      <p className="subtitle">{t('dash.subtitle')}</p>
 
       {live && (
         <div className="grid" style={{ marginBottom: 14 }}>
           <div className="card stagger">
-            <h3>CPU — charge</h3>
+            <h3>{t('dash.cpuLoad')}</h3>
             <div className="big">{live.cpuLoad}%{live.cpuTemp != null ? ` · ${live.cpuTemp}°C` : ''}</div>
             <div className="bar-track">
               <div className={`bar-fill ${live.cpuLoad > 85 ? 'warn' : ''}`} style={{ width: `${live.cpuLoad}%` }} />
             </div>
           </div>
           <div className="card stagger">
-            <h3>Mémoire</h3>
+            <h3>{t('dash.memory')}</h3>
             <div className="big">
-              {live.memUsedGB} / {live.memTotalGB} Go
+              {live.memUsedGB} / {live.memTotalGB} GB
             </div>
             <div className="bar-track">
               <div className={`bar-fill ${live.memPercent > 88 ? 'warn' : ''}`} style={{ width: `${live.memPercent}%` }} />
@@ -76,10 +77,10 @@ export default function Dashboard(): React.JSX.Element {
         </div>
       )}
 
-      <div className="section-title">🩺 Analyse de la config (bottlenecks)</div>
+      <div className="section-title">{t('dash.analysis')}</div>
       {insights === null && (
         <div className="card">
-          <span className="spinner" /> <span className="muted">Analyse en cours…</span>
+          <span className="spinner" /> <span className="muted">{t('dash.analyzing')}</span>
         </div>
       )}
       {insights?.map((i, idx) => (
@@ -98,56 +99,56 @@ export default function Dashboard(): React.JSX.Element {
         </div>
       ))}
 
-      <div className="section-title">🖥 Matériel détecté</div>
+      <div className="section-title">{t('dash.hardware')}</div>
       {!report && (
         <div className="card">
-          <span className="spinner" /> <span className="muted">Lecture du matériel…</span>
+          <span className="spinner" /> <span className="muted">{t('dash.readingHw')}</span>
         </div>
       )}
       {report && (
         <div className="grid">
           <div className="card stagger">
-            <h3>Machine</h3>
+            <h3>{t('dash.machine')}</h3>
             <div className="big">
               {report.manufacturer} {report.model}
             </div>
             <div className="sub">
-              {report.isLaptop ? '💻 PC portable' : '🖥 PC fixe'} · {report.os.distro} ({report.os.build})
+              {report.isLaptop ? t('dash.laptop') : t('dash.desktop')} · {report.os.distro} ({report.os.build})
             </div>
           </div>
           <div className="card stagger">
-            <h3>Processeur</h3>
+            <h3>{t('dash.cpu')}</h3>
             <div className="big">{report.cpu.brand}</div>
             <div className="sub">
-              {report.cpu.physicalCores} cœurs / {report.cpu.cores} threads · {report.cpu.speedMax} GHz max
+              {report.cpu.physicalCores} {t('dash.cores')} / {report.cpu.cores} {t('dash.threads')} · {report.cpu.speedMax} GHz {t('dash.max')}
             </div>
           </div>
           {report.gpus.map((g, i) => (
             <div className="card stagger" key={i}>
-              <h3>Carte graphique {report.gpus.length > 1 ? i + 1 : ''}</h3>
+              <h3>{t('dash.gpu')} {report.gpus.length > 1 ? i + 1 : ''}</h3>
               <div className="big">{g.model}</div>
-              <div className="sub">{g.vramMB > 0 ? `${Math.round(g.vramMB / 1024)} Go VRAM` : g.vendor}</div>
+              <div className="sub">{g.vramMB > 0 ? `${Math.round(g.vramMB / 1024)} ${t('dash.vram')}` : g.vendor}</div>
             </div>
           ))}
           <div className="card stagger">
-            <h3>Mémoire vive</h3>
-            <div className="big">{report.ram.totalGB} Go</div>
+            <h3>{t('dash.ram')}</h3>
+            <div className="big">{report.ram.totalGB} GB</div>
             <div className="sub">{report.ram.slots || '—'}</div>
           </div>
           {report.disks.map((d, i) => (
             <div className="card stagger" key={i}>
-              <h3>Stockage {report.disks.length > 1 ? i + 1 : ''}</h3>
+              <h3>{t('dash.storage')} {report.disks.length > 1 ? i + 1 : ''}</h3>
               <div className="big">{d.name}</div>
               <div className="sub">
-                {d.sizeGB} Go · {d.type} {d.interfaceType && `(${d.interfaceType})`}
+                {d.sizeGB} GB · {d.type} {d.interfaceType && `(${d.interfaceType})`}
               </div>
             </div>
           ))}
           {report.volumes.map((v) => (
             <div className="card stagger" key={v.mount}>
-              <h3>Volume {v.mount}</h3>
+              <h3>{t('dash.volume')} {v.mount}</h3>
               <div className="big">
-                {v.usedGB} / {v.sizeGB} Go
+                {v.usedGB} / {v.sizeGB} GB
               </div>
               <div className="bar-track">
                 <div className={`bar-fill ${v.usePercent > 90 ? 'warn' : ''}`} style={{ width: `${v.usePercent}%` }} />
@@ -156,15 +157,15 @@ export default function Dashboard(): React.JSX.Element {
           ))}
           {report.battery.hasBattery && (
             <div className="card stagger">
-              <h3>Batterie</h3>
+              <h3>{t('dash.battery')}</h3>
               <div className="big">
-                {report.battery.percent}% {report.battery.isCharging ? '⚡ en charge' : ''}
+                {report.battery.percent}% {report.battery.isCharging ? t('dash.charging') : ''}
               </div>
               <div className="sub">
-                {report.battery.healthPercent != null && `Santé : ${report.battery.healthPercent}% de la capacité d\u2019origine`}
+                {report.battery.healthPercent != null && t('dash.batteryHealth', report.battery.healthPercent)}
               </div>
               <button className="btn" style={{ marginTop: 10 }} onClick={() => window.api.openBatteryReport()}>
-                Rapport batterie détaillé
+                {t('dash.batteryReport')}
               </button>
             </div>
           )}
@@ -173,33 +174,33 @@ export default function Dashboard(): React.JSX.Element {
 
       {details && (
         <>
-          <div className="section-title">🔎 Détails avancés</div>
+          <div className="section-title">{t('dash.details')}</div>
           <div className="grid">
             {details.bios && (
               <div className="card stagger">
-                <h3>BIOS / UEFI</h3>
+                <h3>{t('dash.bios')}</h3>
                 <div className="big">{details.bios.version}</div>
                 <div className="sub">
-                  {details.bios.vendor} · {details.bios.date || 'date inconnue'}
+                  {details.bios.vendor} · {details.bios.date || '—'}
                   <br />
-                  {details.bios.uefi ? 'UEFI ✓' : 'Legacy BIOS'} · Secure Boot {details.bios.secureBoot ? 'actif ✓' : 'inactif'}
+                  {details.bios.uefi ? 'UEFI ✓' : 'Legacy BIOS'} · {details.bios.secureBoot ? t('dash.secureBootOn') : t('dash.secureBootOff')}
                   {details.tpm?.present && ` · TPM ${details.tpm.version.split(',')[0]}`}
                 </div>
               </div>
             )}
             {details.windows && (
               <div className="card stagger">
-                <h3>Windows</h3>
+                <h3>{t('dash.windows')}</h3>
                 <div className="big">
                   {details.windows.edition} {details.windows.displayVersion}
                 </div>
                 <div className="sub">
-                  Installé le {details.windows.installDate || '—'} · Uptime {details.windows.uptimeHours} h
+                  {t('dash.installedOn')} {details.windows.installDate || '—'} · {t('dash.uptime')} {details.windows.uptimeHours} h
                   <br />
-                  Antivirus : {details.windows.antivirus}
+                  {t('dash.antivirus')} : {details.windows.antivirus}
                   <br />
-                  Démarrage rapide {details.windows.fastStartup ? 'actif' : 'inactif'} · Intégrité mémoire (VBS){' '}
-                  {details.windows.hvci ? 'active' : 'inactive'}
+                  {t('dash.fastStartup')} {details.windows.fastStartup ? t('dash.on') : t('dash.off')} · {t('dash.vbs')}{' '}
+                  {details.windows.hvci ? t('dash.on') : t('dash.off')}
                 </div>
               </div>
             )}
@@ -207,35 +208,33 @@ export default function Dashboard(): React.JSX.Element {
               <div className="card stagger" key={i}>
                 <h3>RAM — {r.bank}</h3>
                 <div className="big">
-                  {r.sizeGB} Go @ {r.configuredMHz || '?'} MT/s
+                  {r.sizeGB} GB @ {r.configuredMHz || '?'} MT/s
                 </div>
                 <div className="sub">
                   {r.maker} {r.part}
                   <br />
-                  {r.xmpActive === true && <span style={{ color: 'var(--green)' }}>Profil XMP/EXPO actif ✓</span>}
+                  {r.xmpActive === true && <span style={{ color: 'var(--green)' }}>{t('dash.xmpOn')}</span>}
                   {r.xmpActive === false && (
-                    <span style={{ color: 'var(--orange)' }}>
-                      Tourne à {r.configuredMHz} au lieu de {r.ratedMHz} MT/s — active XMP dans le BIOS !
-                    </span>
+                    <span style={{ color: 'var(--orange)' }}>{t('dash.xmpOff', r.configuredMHz, r.ratedMHz)}</span>
                   )}
                 </div>
               </div>
             ))}
             {details.diskHealth.map((d, i) => (
               <div className="card stagger" key={i}>
-                <h3>Santé disque</h3>
+                <h3>{t('dash.diskHealth')}</h3>
                 <div className="big">{d.model}</div>
                 <div className="sub">
-                  État : {d.health}
+                  {t('dash.state')} : {d.health}
                   {d.tempC != null && ` · ${d.tempC}°C`}
-                  {d.powerOnHours != null && ` · ${d.powerOnHours} h d\u2019utilisation`}
-                  {d.wearPercent != null && ` · usure ${d.wearPercent}%`}
+                  {d.powerOnHours != null && ` · ${d.powerOnHours} ${t('dash.hoursUse')}`}
+                  {d.wearPercent != null && ` · ${t('dash.wear')} ${d.wearPercent}%`}
                 </div>
               </div>
             ))}
             {details.displays.map((d, i) => (
               <div className="card stagger" key={i}>
-                <h3>Écran {details.displays.length > 1 ? i + 1 : ''} {d.main ? '(principal)' : ''}</h3>
+                <h3>{t('dash.screen')} {details.displays.length > 1 ? i + 1 : ''} {d.main ? t('dash.main') : ''}</h3>
                 <div className="big">
                   {d.resX}×{d.resY} @ {d.hz || '?'} Hz
                 </div>
@@ -244,7 +243,7 @@ export default function Dashboard(): React.JSX.Element {
                   {d.hz > 0 && d.hz <= 60 && (
                     <>
                       <br />
-                      <span style={{ color: 'var(--orange)' }}>60 Hz — vérifie si ton écran supporte plus !</span>
+                      <span style={{ color: 'var(--orange)' }}>{t('dash.check60hz')}</span>
                     </>
                   )}
                 </div>

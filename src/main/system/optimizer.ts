@@ -1,7 +1,10 @@
 import { ps } from './powershell'
+import { T } from './i18n'
 import type { TweakInfo, TweakState, ActionResult, TweakRelevance } from '../../shared/types'
 
 interface Tweak extends TweakInfo {
+  nameEn: string
+  descriptionEn: string
   apply: string
   revert: string
   /** Script PS qui écrit "1" si le tweak est appliqué */
@@ -19,8 +22,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'power-high',
     name: 'Plan d\u2019alimentation Performances élevées',
+    nameEn: 'High Performance power plan',
     description:
       'Active le plan Performances élevées (ou Ultimate si dispo) : le CPU ne descend plus en fréquence pendant le jeu. Gain FPS/latence réel, surtout sur les CPU qui throttle.',
+    descriptionEn:
+      'Enables the High Performance plan (or Ultimate if available): the CPU no longer downclocks while gaming. Real FPS/latency gain, especially on throttling CPUs.',
     category: 'performance',
     needsAdmin: false,
     laptopWarning: true,
@@ -39,8 +45,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'gamedvr-off',
     name: 'Désactiver Xbox Game DVR (enregistrement en arrière-plan)',
+    nameEn: 'Disable Xbox Game DVR (background recording)',
     description:
       'Coupe l\u2019enregistrement d\u2019écran permanent de Windows qui bouffe des FPS dans tous les jeux. N\u2019affecte pas Game Bar ni les captures manuelles.',
+    descriptionEn:
+      'Stops Windows\u2019 always-on screen recording that eats FPS in every game. Does not affect Game Bar or manual captures.',
     category: 'gaming',
     needsAdmin: false,
     laptopWarning: false,
@@ -61,8 +70,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'gamemode-on',
     name: 'Activer le Mode Jeu Windows',
+    nameEn: 'Enable Windows Game Mode',
     description:
       'Windows priorise le jeu au premier plan (CPU/GPU) et bloque Windows Update pendant que tu joues. Recommandé par Microsoft, NVIDIA et AMD.',
+    descriptionEn:
+      'Windows prioritizes the foreground game (CPU/GPU) and blocks Windows Update while you play. Recommended by Microsoft, NVIDIA and AMD.',
     category: 'gaming',
     needsAdmin: false,
     laptopWarning: false,
@@ -81,8 +93,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'hags-on',
     name: 'Planification GPU à accélération matérielle (HAGS)',
+    nameEn: 'Hardware-Accelerated GPU Scheduling (HAGS)',
     description:
       'Le GPU gère sa propre file d\u2019attente : réduit la latence de rendu sur les GPU récents (NVIDIA 10xx+, AMD 5000+). Nécessite un redémarrage.',
+    descriptionEn:
+      'The GPU manages its own queue: reduces render latency on recent GPUs (NVIDIA 10xx+, AMD 5000+). Requires a restart.',
     category: 'latence',
     needsAdmin: true,
     laptopWarning: false,
@@ -99,8 +114,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'mouse-accel-off',
     name: 'Désactiver l\u2019accélération souris',
+    nameEn: 'Disable mouse acceleration',
     description:
       'Précision du pointeur désactivée : la souris devient 1:1, indispensable pour viser dans les FPS. Aucun impact perf, pur gain de précision.',
+    descriptionEn:
+      'Pointer precision off: the mouse becomes 1:1 — essential for aiming in FPS games. No perf cost, pure precision gain.',
     category: 'latence',
     needsAdmin: false,
     laptopWarning: false,
@@ -121,8 +139,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'network-latency',
     name: 'Réduire la latence réseau (jeux en ligne)',
+    nameEn: 'Reduce network latency (online games)',
     description:
       'Augmente la priorité réseau des jeux et désactive la limitation réseau de Windows (NetworkThrottlingIndex). Ping plus stable en jeu, aucun impact qualité.',
+    descriptionEn:
+      'Raises game network priority and disables Windows network throttling (NetworkThrottlingIndex). More stable in-game ping, zero quality impact.',
     category: 'latence',
     needsAdmin: true,
     laptopWarning: false,
@@ -151,8 +172,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'prio-foreground',
     name: 'Priorité CPU au premier plan (jeu actif)',
+    nameEn: 'Foreground CPU priority (active game)',
     description:
       'Règle Win32PrioritySeparation sur 38 : Windows donne des tranches CPU plus longues au programme actif — ton jeu. Tweak classique des configs e-sport, réversible.',
+    descriptionEn:
+      'Sets Win32PrioritySeparation to 38: Windows gives longer CPU slices to the active program — your game. Classic esports tweak, reversible.',
     category: 'performance',
     needsAdmin: true,
     laptopWarning: false,
@@ -167,8 +191,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'power-throttling-off',
     name: 'Désactiver le Power Throttling',
+    nameEn: 'Disable Power Throttling',
     description:
       'Empêche Windows de brider les processus en arrière-plan (Discord, OBS, launcher) pendant que tu joues — évite les micro-freezes. Sur portable : consomme plus de batterie.',
+    descriptionEn:
+      'Stops Windows from throttling background processes (Discord, OBS, launchers) while you play — prevents micro-freezes. On laptops: uses more battery.',
     category: 'performance',
     needsAdmin: true,
     laptopWarning: true,
@@ -185,8 +212,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'background-apps-off',
     name: 'Couper les applis UWP en arrière-plan',
+    nameEn: 'Stop UWP background apps',
     description:
       'Empêche les applis du Microsoft Store de tourner en fond (météo, actus…). Gain réel sur les petits CPU et les laptops. Les notifications de ces applis seront coupées.',
+    descriptionEn:
+      'Prevents Microsoft Store apps from running in the background (weather, news…). Real gain on small CPUs and laptops. Their notifications will be muted.',
     category: 'gaming',
     needsAdmin: false,
     laptopWarning: false,
@@ -203,8 +233,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'stickykeys-hotkey-off',
     name: 'Désactiver le raccourci Touches rémanentes',
+    nameEn: 'Disable Sticky Keys shortcut',
     description:
       'Fini la popup « Touches rémanentes » quand tu spammes Shift en pleine partie. Zéro impact perf, purement anti-rage.',
+    descriptionEn:
+      'No more Sticky Keys popup when you spam Shift mid-game. Zero perf impact, purely anti-rage.',
     category: 'gaming',
     needsAdmin: false,
     laptopWarning: false,
@@ -219,8 +252,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'menu-delay',
     name: 'Interface Windows plus réactive',
+    nameEn: 'Snappier Windows UI',
     description:
       'Réduit le délai d\u2019ouverture des menus (400 ms → 150 ms). Le PC paraît instantanément plus rapide, zéro perte de qualité.',
+    descriptionEn:
+      'Reduces menu open delay (400 ms → 150 ms). The PC instantly feels faster, zero quality loss.',
     category: 'systeme',
     needsAdmin: false,
     laptopWarning: false,
@@ -235,8 +271,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'storage-sense',
     name: 'Activer l\u2019Assistant Stockage',
+    nameEn: 'Enable Storage Sense',
     description:
       'Windows nettoie automatiquement les fichiers temporaires et la corbeille. Idéal pour les PC portables avec peu de stockage.',
+    descriptionEn:
+      'Windows automatically cleans temp files and the recycle bin. Ideal for laptops with limited storage.',
     category: 'systeme',
     needsAdmin: false,
     laptopWarning: false,
@@ -256,8 +295,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'telemetry-min',
     name: 'Réduire la télémétrie Windows',
+    nameEn: 'Reduce Windows telemetry',
     description:
       'Passe la collecte de données au minimum autorisé. Moins de tâches de fond = plus de CPU dispo. Réversible à tout moment.',
+    descriptionEn:
+      'Sets data collection to the minimum allowed. Fewer background tasks = more CPU available. Reversible anytime.',
     category: 'systeme',
     needsAdmin: true,
     laptopWarning: false,
@@ -276,8 +318,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'hibernate-off',
     name: 'Désactiver la veille prolongée (desktop)',
+    nameEn: 'Disable hibernation (desktop)',
     description:
       'Libère plusieurs Go sur le disque (hiberfil.sys). Déconseillé sur portable : tu perds la mise en veille prolongée sur batterie faible.',
+    descriptionEn:
+      'Frees several GB on disk (hiberfil.sys). Not recommended on laptops: you lose hibernation on low battery.',
     category: 'avance',
     needsAdmin: true,
     laptopWarning: true,
@@ -292,8 +337,11 @@ const TWEAKS: Tweak[] = [
   {
     id: 'visualfx-balanced',
     name: 'Animations allégées (garde la qualité visuelle)',
+    nameEn: 'Lighter animations (keeps visual quality)',
     description:
       'Désactive uniquement les animations inutiles (fenêtres, barre des tâches) en gardant les polices lissées et les miniatures. UI plus réactive sans look dégradé.',
+    descriptionEn:
+      'Disables only useless animations (windows, taskbar) while keeping font smoothing and thumbnails. Snappier UI without a degraded look.',
     category: 'avance',
     needsAdmin: false,
     laptopWarning: false,
@@ -315,7 +363,11 @@ const TWEAKS: Tweak[] = [
 ]
 
 export function listTweaks(): TweakInfo[] {
-  return TWEAKS.map(({ apply: _a, revert: _r, check: _c, ...info }) => info)
+  return TWEAKS.map(({ apply: _a, revert: _r, check: _c, nameEn, descriptionEn, ...info }) => ({
+    ...info,
+    name: T(nameEn, info.name),
+    description: T(descriptionEn, info.description)
+  }))
 }
 
 export async function getTweakStates(): Promise<TweakState[]> {
@@ -342,11 +394,11 @@ export async function applyTweak(id: string): Promise<ActionResult> {
       return {
         ok: false,
         message: t.needsAdmin
-          ? 'Échec — relance OptiForge en administrateur pour ce tweak.'
-          : 'Le tweak n\u2019a pas pu être vérifié.'
+          ? T('Failed — relaunch Pkaizen Forge as administrator for this tweak.', 'Échec — relance Pkaizen Forge en administrateur pour ce tweak.')
+          : T('The tweak could not be verified.', 'Le tweak n\u2019a pas pu être vérifié.')
       }
     }
-    return { ok: true, message: t.needsReboot ? 'Appliqué — redémarrage requis pour prendre effet.' : 'Appliqué.' }
+    return { ok: true, message: t.needsReboot ? T('Applied — restart required to take effect.', 'Appliqué — redémarrage requis pour prendre effet.') : T('Applied.', 'Appliqué.') }
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }
@@ -357,7 +409,7 @@ export async function revertTweak(id: string): Promise<ActionResult> {
   if (!t) return { ok: false, message: 'Tweak inconnu' }
   try {
     await ps(t.revert, 30000)
-    return { ok: true, message: 'Valeurs Windows par défaut restaurées.' }
+    return { ok: true, message: T('Windows default values restored.', 'Valeurs Windows par défaut restaurées.') }
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }
