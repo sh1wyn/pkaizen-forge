@@ -36,11 +36,18 @@ export default function Browser(): React.JSX.Element {
   const { t } = useI18n()
   const [report, setReport] = useState<BrowserReport | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const [detectBusy, setDetectBusy] = useState(false)
   const toast = useToast()
 
-  useEffect(() => {
-    cached('browser', () => window.api.getBrowserReport(), 60_000).then(setReport).catch(() => setReport(null))
-  }, [])
+  const detect = async (): Promise<void> => {
+    setDetectBusy(true)
+    try {
+      setReport(await cached('browser', () => window.api.getBrowserReport(), 60_000))
+    } catch {
+      setReport(null)
+    }
+    setDetectBusy(false)
+  }
 
   const install = async (id: string): Promise<void> => {
     setBusy(id)
@@ -62,8 +69,10 @@ export default function Browser(): React.JSX.Element {
       <p className="subtitle">{t('browser.subtitle')}</p>
 
       {report === null && (
-        <div className="card">
-          <span className="spinner" /> <span className="muted">{t('browser.detecting')}</span>
+        <div className="toolbar">
+          <button className="btn primary" disabled={detectBusy} onClick={detect}>
+            {detectBusy ? <span className="spinner" /> : '🧭'} {t('browser.scan')}
+          </button>
         </div>
       )}
 

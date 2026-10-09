@@ -202,24 +202,35 @@ export async function speedTest(
     downMbps = null
   }
 
-  // --- Upload : 3 envois parallèles ---
+  // --- Upload : 3 envois parallèles, 2e passe plus grosse si la ligne est rapide ---
   try {
     onProgress('up', 0, 0)
-    const payload = Buffer.alloc(UP_BYTES_EACH, 0x50)
-    const t1 = performance.now()
-    const results = await Promise.allSettled(
-      Array.from({ length: UP_STREAMS }, () =>
-        fetch('https://speed.cloudflare.com/__up', {
-          method: 'POST',
-          body: payload,
-          headers: { ...CF_HEADERS, 'Content-Type': 'application/octet-stream' }
-        })
+    const measureUpload = async (bytesEach: number): Promise<{ mbps: number; ms: number } | null> => {
+      const payload = Buffer.alloc(bytesEach, 0x50)
+      const t1 = performance.now()
+      const results = await Promise.allSettled(
+        Array.from({ length: UP_STREAMS }, () =>
+          fetch('https://speed.cloudflare.com/__up', {
+            method: 'POST',
+            body: payload,
+            headers: { ...CF_HEADERS, 'Content-Type': 'application/octet-stream' }
+          })
+        )
       )
-    )
-    const okCount = results.filter((r) => r.status === 'fulfilled' && r.value.ok).length
-    const upMs = performance.now() - t1
-    if (okCount > 0 && upMs > 0) {
-      upMbps = Math.round(((okCount * UP_BYTES_EACH * 8) / (upMs / 1000) / 1e6) * 10) / 10
+      const okCount = results.filter((r) => r.status === 'fulfilled' && r.value.ok).length
+      const ms = performance.now() - t1
+      if (okCount === 0 || ms <= 0) return null
+      return { mbps: (okCount * bytesEach * 8) / (ms / 1000) / 1e6, ms }
+    }
+
+    let m = await measureUpload(UP_BYTES_EACH)
+    // Ligne rapide : mesure trop courte pour être fiable → 2e passe avec 4× plus de données.
+    if (m && m.ms < 2000) {
+      onProgress('up', Math.round(m.mbps * 10) / 10, 50)
+      m = (await measureUpload(UP_BYTES_EACH * 4)) ?? m
+    }
+    if (m) {
+      upMbps = Math.round(m.mbps * 10) / 10
       onProgress('up', upMbps, 100)
     }
   } catch {

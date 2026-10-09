@@ -100,9 +100,13 @@ export async function getLiveStats(): Promise<LiveStats> {
 }
 
 let hasNvidiaSmi: boolean | null = null
+let gpuTick = 0
+let lastGpu: { load: number | null; temp: number | null } = { load: null, temp: null }
 
 async function getGpuLive(): Promise<{ load: number | null; temp: number | null }> {
   if (hasNvidiaSmi === false) return { load: null, temp: null }
+  // 1 spawn nvidia-smi sur 2 : moitié moins de processus pendant le polling live.
+  if (gpuTick++ % 2 !== 0) return lastGpu
   try {
     const { execFile } = await import('child_process')
     const out = await new Promise<string>((resolve, reject) => {
@@ -115,7 +119,8 @@ async function getGpuLive(): Promise<{ load: number | null; temp: number | null 
     })
     hasNvidiaSmi = true
     const [load, temp] = out.trim().split(',').map((s) => parseInt(s.trim(), 10))
-    return { load: Number.isNaN(load) ? null : load, temp: Number.isNaN(temp) ? null : temp }
+    lastGpu = { load: Number.isNaN(load) ? null : load, temp: Number.isNaN(temp) ? null : temp }
+    return lastGpu
   } catch {
     hasNvidiaSmi = false
     return { load: null, temp: null }

@@ -187,6 +187,7 @@ export default function Benchmark(): React.JSX.Element {
       <p className="subtitle">{t('bench.subtitle')}</p>
 
       <div className="banner info">{t('bench.tip')}</div>
+      <div className="banner info">{t('bench.explain')}</div>
 
       <div className="toolbar">
         <button className="btn primary" disabled={phase !== 'idle'} onClick={run}>
@@ -240,7 +241,9 @@ export default function Benchmark(): React.JSX.Element {
             <div className="card stagger">
               <h3>{t('bench.gpuRender')}</h3>
               <div className="big">{result.gpuFps} FPS</div>
-              <div className="sub">{t('bench.gpuSub')}</div>
+              <div className="sub">
+                {result.gpuFps >= 200 ? t('bench.gpuHigh') : result.gpuFps >= 90 ? t('bench.gpuMid') : t('bench.gpuLow')}
+              </div>
             </div>
           </div>
         </>
