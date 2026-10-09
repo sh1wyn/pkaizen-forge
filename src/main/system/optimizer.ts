@@ -1,4 +1,4 @@
-import { ps } from './powershell'
+import { ps, psJson } from './powershell'
 import { T } from './i18n'
 import type { TweakInfo, TweakState, ActionResult, TweakRelevance } from '../../shared/types'
 
@@ -371,17 +371,16 @@ export function listTweaks(): TweakInfo[] {
 }
 
 export async function getTweakStates(): Promise<TweakState[]> {
-  const results = await Promise.all(
-    TWEAKS.map(async (t) => {
-      try {
-        const out = await ps(t.check, 15000)
-        return { id: t.id, applied: out.includes('1'), available: true }
-      } catch {
-        return { id: t.id, applied: false, available: false }
-      }
-    })
-  )
-  return results
+  // Un seul process PowerShell pour les 15 checks (au lieu de 15 en parallèle).
+  const checks = TWEAKS.map((t, i) => `$o${i} = & { ${t.check} }\n$r['${t.id}'] = ("$o${i}" -match '1')`)
+  const script = `$r = @{}\n${checks.join('\n')}\nConvertTo-Json $r`
+  try {
+    const raw = await psJson<Record<string, boolean>>(script, 60000)
+    if (!raw) throw new Error('empty')
+    return TWEAKS.map((t) => ({ id: t.id, applied: raw[t.id] === true, available: t.id in raw }))
+  } catch {
+    return TWEAKS.map((t) => ({ id: t.id, applied: false, available: false }))
+  }
 }
 
 export async function applyTweak(id: string): Promise<ActionResult> {

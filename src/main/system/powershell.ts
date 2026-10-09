@@ -2,19 +2,39 @@ import { execFile } from 'child_process'
 
 const PRELUDE = `$ErrorActionPreference='SilentlyContinue';[Console]::OutputEncoding=[Text.Encoding]::UTF8;`
 
-export function ps(script: string, timeoutMs = 60000): Promise<string> {
-  const encoded = Buffer.from(PRELUDE + script, 'utf16le').toString('base64')
-  return new Promise((resolve, reject) => {
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded],
-      { maxBuffer: 32 * 1024 * 1024, windowsHide: true, timeout: timeoutMs, encoding: 'utf8' },
-      (err, stdout, stderr) => {
-        if (err && !stdout) reject(new Error(stderr || err.message))
-        else resolve(stdout.trim())
-      }
-    )
-  })
+// Max 2 PowerShell simultanés : évite de saturer les petits CPU (freeze du PC).
+const MAX_CONCURRENT = 2
+let running = 0
+const waiters: (() => void)[] = []
+
+async function acquire(): Promise<void> {
+  if (running >= MAX_CONCURRENT) await new Promise<void>((r) => waiters.push(r))
+  running++
+}
+
+function release(): void {
+  running--
+  waiters.shift()?.()
+}
+
+export async function ps(script: string, timeoutMs = 60000): Promise<string> {
+  await acquire()
+  try {
+    const encoded = Buffer.from(PRELUDE + script, 'utf16le').toString('base64')
+    return await new Promise((resolve, reject) => {
+      execFile(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded],
+        { maxBuffer: 32 * 1024 * 1024, windowsHide: true, timeout: timeoutMs, encoding: 'utf8' },
+        (err, stdout, stderr) => {
+          if (err && !stdout) reject(new Error(stderr || err.message))
+          else resolve(stdout.trim())
+        }
+      )
+    })
+  } finally {
+    release()
+  }
 }
 
 export async function psJson<T>(script: string, timeoutMs = 60000): Promise<T | null> {

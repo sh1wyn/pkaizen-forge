@@ -1,6 +1,6 @@
 {
   "name": "pkaizen-forge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pkaizen Forge — optimisation PC sûre et réversible : diagnostic matériel, boost FPS/latence, nettoyage et pilotes officiels (desktop & laptop)",
   "main": "./out/main/index.js",
   "author": "sh1wyn",

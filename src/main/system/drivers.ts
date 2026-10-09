@@ -12,7 +12,11 @@ interface RawDriver {
   className: string
 }
 
+// Win32_PnPSignedDriver est très coûteux (WMI) : cache 5 min, appelé par 3 modules.
+let driversCache: { at: number; data: DriverEntry[] } | null = null
+
 export async function scanDrivers(): Promise<DriverEntry[]> {
+  if (driversCache && Date.now() - driversCache.at < 5 * 60_000) return driversCache.data
   const raw = await psJson<RawDriver | RawDriver[]>(
     `
     $d = Get-CimInstance Win32_PnPSignedDriver |
@@ -32,7 +36,7 @@ export async function scanDrivers(): Promise<DriverEntry[]> {
     90000
   )
   const now = Date.now()
-  return asArray(raw)
+  const result = asArray(raw)
     .filter((d) => d && d.device)
     .map((d) => {
       let ageYears: number | null = null
@@ -43,6 +47,8 @@ export async function scanDrivers(): Promise<DriverEntry[]> {
       return { ...d, ageYears }
     })
     .sort((a, b) => (b.ageYears ?? -1) - (a.ageYears ?? -1))
+  driversCache = { at: Date.now(), data: result }
+  return result
 }
 
 export async function getWingetUpgrades(): Promise<WingetUpgrade[]> {
@@ -324,10 +330,17 @@ const PNP_ERRORS: Record<number, [string, string]> = {
   52: ['Invalid driver signature', 'Signature du pilote invalide']
 }
 
+// Cache des données brutes (localisation appliquée à chaque appel).
+let problemCache: { at: number; data: { name: string; id: string; code: number; className: string }[] } | null = null
+
 export async function getProblemDevices(): Promise<ProblemDevice[]> {
-  const raw = await psJson<
-    { name: string; id: string; code: number; className: string } | { name: string; id: string; code: number; className: string }[]
-  >(
+  let rawList: { name: string; id: string; code: number; className: string }[]
+  if (problemCache && Date.now() - problemCache.at < 5 * 60_000) {
+    rawList = problemCache.data
+  } else {
+    const raw = await psJson<
+      { name: string; id: string; code: number; className: string } | { name: string; id: string; code: number; className: string }[]
+    >(
     `
     $bad = Get-CimInstance Win32_PnPEntity |
       Where-Object { $_.ConfigManagerErrorCode -ne 0 -and $_.ConfigManagerErrorCode -ne 45 -and $_.ConfigManagerErrorCode -ne 22 } |
@@ -341,10 +354,12 @@ export async function getProblemDevices(): Promise<ProblemDevice[]> {
       }
     ConvertTo-Json -InputObject @($bad) -Depth 3
     `,
-    60000
-  )
-  return asArray(raw)
-    .filter((d) => d && d.name)
+      60000
+    )
+    rawList = asArray(raw).filter((d) => d && d.name)
+    problemCache = { at: Date.now(), data: rawList }
+  }
+  return rawList
     .map((d) => ({
       name: d.name,
       deviceId: d.id,

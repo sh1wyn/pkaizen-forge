@@ -75,6 +75,11 @@ export async function getDetailedInfo(): Promise<DetailedInfo> {
 
   const uptimeH = Math.round((time.uptime / 3600) * 10) / 10
 
+  // Le registre ment : ProductName dit "Windows 10" même sur Win11. Le build tranche (>= 22000 = Win11).
+  const build = parseInt(osInfo.build, 10) || 0
+  const fixEdition = (edition: string): string =>
+    build >= 22000 ? edition.replace(/Windows 10/i, 'Windows 11') : edition
+
   return {
     bios: raw
       ? {
@@ -88,7 +93,7 @@ export async function getDetailedInfo(): Promise<DetailedInfo> {
     tpm: raw?.tpm ? { present: raw.tpm.present, version: raw.tpm.version } : null,
     windows: raw
       ? {
-          edition: raw.os.edition,
+          edition: fixEdition(raw.os.edition),
           displayVersion: raw.os.displayVersion || osInfo.release,
           build: osInfo.build,
           installDate: raw.os.installDate,
