@@ -4,6 +4,7 @@ const api = {
   setLang: (lang: 'en' | 'fr' | 'es' | 'ru' | 'de' | 'pt' | 'it') => ipcRenderer.invoke('app:setLang', lang),
   getVersion: () => ipcRenderer.invoke('app:version'),
   checkUpdates: () => ipcRenderer.invoke('app:checkUpdates'),
+  relaunchAdmin: () => ipcRenderer.invoke('app:relaunchAdmin'),
   getSystemReport: () => ipcRenderer.invoke('system:report'),
   getLiveStats: () => ipcRenderer.invoke('system:live'),
   getInsights: () => ipcRenderer.invoke('system:insights'),

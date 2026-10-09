@@ -82,7 +82,21 @@ export default function Optimize({ isAdmin }: { isAdmin: boolean }): React.JSX.E
       <h1>{t('opt.title')}</h1>
       <p className="subtitle">{t('opt.subtitle')}</p>
 
-      {!isAdmin && <div className="banner warn">{t('opt.adminBanner')}</div>}
+      {!isAdmin && (
+        <div className="banner warn">
+          {t('opt.adminBanner')}
+          <button
+            className="btn primary"
+            style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}
+            onClick={async () => {
+              const r = await window.api.relaunchAdmin()
+              if (!r.ok && r.message) toast(r.message, 'info')
+            }}
+          >
+            🛡 {t('opt.relaunchAdmin')}
+          </button>
+        </div>
+      )}
       {report?.isLaptop && <div className="banner info">{t('opt.laptopBanner')}</div>}
 
       <div className="card" style={{ marginBottom: 20 }}>

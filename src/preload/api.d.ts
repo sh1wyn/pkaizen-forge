@@ -32,11 +32,13 @@ declare global {
       setLang: (lang: string) => Promise<void>
       getVersion: () => Promise<string>
       checkUpdates: () => Promise<{ status: 'dev' | 'available' | 'uptodate' | 'error'; current: string; newVersion?: string; message?: string }>
+      relaunchAdmin: () => Promise<{ ok: boolean; message?: string }>
       getSystemReport: () => Promise<SystemReport>
       getLiveStats: () => Promise<LiveStats>
       getInsights: () => Promise<Insight[]>
       getDetailedInfo: () => Promise<DetailedInfo>
       isAdmin: () => Promise<boolean>
+      relaunchAdmin: () => Promise<ActionResult>
       createRestorePoint: () => Promise<ActionResult>
       openBatteryReport: () => Promise<ActionResult>
 

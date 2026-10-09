@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
 import { join } from 'path'
 import { readFileSync, existsSync } from 'fs'
+import { execFile } from 'child_process'
 import { ps } from './system/powershell'
 import { setLang, T, type Lang } from './system/i18n'
 import { getSystemReport, getLiveStats } from './system/sysinfo'
@@ -60,14 +61,10 @@ function handle(channel: string, fn: (e: Electron.IpcMainInvokeEvent, ...args: n
 
 async function isAdmin(): Promise<boolean> {
   if (isAdminCached != null) return isAdminCached
-  try {
-    const out = await ps(
-      `([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)`
-    )
-    isAdminCached = out.trim().toLowerCase() === 'true'
-  } catch {
-    isAdminCached = false
-  }
+  // net session : natif, instantané, réussit uniquement élevé (l'ancien check PS pouvait timeout et cacher "false" à tort).
+  isAdminCached = await new Promise<boolean>((resolve) => {
+    execFile('net.exe', ['session'], { windowsHide: true, timeout: 5000 }, (err) => resolve(!err))
+  })
   return isAdminCached
 }
 
@@ -113,6 +110,21 @@ function createWindow(): void {
 
 function registerIpc(): void {
   ipcMain.handle('app:setLang', (_e, l: Lang) => setLang(l))
+  handle('app:relaunchAdmin', async () => {
+    if (!app.isPackaged) return { ok: false, message: 'Dev mode: relaunch VS Code as admin instead.' }
+    const { spawn } = await import('child_process')
+    const exe = process.execPath
+    // Délai pour laisser l'instance actuelle libérer le verrou mono-instance.
+    const child = spawn(
+      'powershell.exe',
+      ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', `Start-Sleep -Milliseconds 900; Start-Process -FilePath '${exe.replace(/'/g, "''")}' -Verb RunAs`],
+      { detached: true, stdio: 'ignore' }
+    )
+    child.unref()
+    setTimeout(() => app.quit(), 200)
+    return { ok: true }
+  })
+
   ipcMain.handle('app:version', () => app.getVersion())
   handle('app:checkUpdates', async () => {
     if (!app.isPackaged || !updaterRef) return { status: 'dev', current: app.getVersion() }
@@ -130,6 +142,16 @@ function registerIpc(): void {
   handle('system:insights', () => getInsights())
   handle('system:details', () => getDetailedInfo())
   handle('system:isAdmin', () => isAdmin())
+  handle('app:relaunchAdmin', async () => {
+    if (!app.isPackaged) {
+      return { ok: false, message: T('Dev mode: relaunch your terminal as admin instead.', 'En dev : relance ton terminal en admin.') }
+    }
+    const exe = process.execPath.replace(/'/g, "''")
+    app.releaseSingleInstanceLock()
+    await ps(`Start-Process -FilePath '${exe}' -Verb RunAs`)
+    setTimeout(() => app.quit(), 500)
+    return { ok: true }
+  })
 
   handle('system:restorePoint', async () => {
     try {

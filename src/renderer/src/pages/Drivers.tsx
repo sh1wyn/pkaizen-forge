@@ -245,7 +245,18 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
       ))}
 
       <div className="section-title">{t('drv.wuSection')}</div>
-      {!isAdmin && <div className="banner warn">{t('drv.wuAdmin')}</div>}
+      {!isAdmin && (
+        <div className="banner warn">
+          {t('drv.wuAdmin')}
+          <button
+            className="btn primary"
+            style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}
+            onClick={() => window.api.relaunchAdmin()}
+          >
+            🛡 {t('opt.relaunchAdmin')}
+          </button>
+        </div>
+      )}
       <div className="toolbar">
         <button className="btn primary" disabled={wuSearching || wuInstalling} onClick={searchWu}>
           {wuSearching ? <span className="spinner" /> : '🔍'} {t('drv.wuSearch')}
