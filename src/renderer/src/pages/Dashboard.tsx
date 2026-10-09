@@ -16,13 +16,33 @@ export default function Dashboard(): React.JSX.Element {
   const [report, setReport] = useState<SystemReport | null>(null)
   const [live, setLive] = useState<LiveStats | null>(null)
   const [insights, setInsights] = useState<Insight[] | null>(null)
+  const [insightsBusy, setInsightsBusy] = useState(false)
   const [details, setDetails] = useState<DetailedInfo | null>(null)
+  const [detailsBusy, setDetailsBusy] = useState(false)
   const toast = useToast()
+
+  const runAnalysis = async (): Promise<void> => {
+    setInsightsBusy(true)
+    try {
+      setInsights(await cached('insights', () => window.api.getInsights()))
+    } catch {
+      setInsights([])
+    }
+    setInsightsBusy(false)
+  }
+
+  const loadDetails = async (): Promise<void> => {
+    setDetailsBusy(true)
+    try {
+      setDetails(await cached('details', () => window.api.getDetailedInfo()))
+    } catch {
+      setDetails(null)
+    }
+    setDetailsBusy(false)
+  }
 
   useEffect(() => {
     cached('report', () => window.api.getSystemReport()).then(setReport).catch(() => toast(t('dash.errHw'), 'error'))
-    cached('insights', () => window.api.getInsights()).then(setInsights).catch(() => setInsights([]))
-    cached('details', () => window.api.getDetailedInfo()).then(setDetails).catch(() => setDetails(null))
     let stop = false
     const poll = async (): Promise<void> => {
       if (document.hidden) return // zéro conso quand la fenêtre est minimisée/cachée
@@ -79,8 +99,11 @@ export default function Dashboard(): React.JSX.Element {
 
       <div className="section-title">{t('dash.analysis')}</div>
       {insights === null && (
-        <div className="card">
-          <span className="spinner" /> <span className="muted">{t('dash.analyzing')}</span>
+        <div className="toolbar">
+          <button className="btn primary" disabled={insightsBusy} onClick={runAnalysis}>
+            {insightsBusy ? <span className="spinner" /> : '🩺'} {t('dash.runAnalysis')}
+          </button>
+          {insightsBusy && <span className="muted">{t('dash.analyzing')}</span>}
         </div>
       )}
       {insights?.map((i, idx) => (
@@ -172,6 +195,16 @@ export default function Dashboard(): React.JSX.Element {
         </div>
       )}
 
+      {!details && (
+        <>
+          <div className="section-title">{t('dash.details')}</div>
+          <div className="toolbar">
+            <button className="btn" disabled={detailsBusy} onClick={loadDetails}>
+              {detailsBusy ? <span className="spinner" /> : '🔎'} {t('dash.loadDetails')}
+            </button>
+          </div>
+        </>
+      )}
       {details && (
         <>
           <div className="section-title">{t('dash.details')}</div>

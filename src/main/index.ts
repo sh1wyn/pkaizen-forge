@@ -20,6 +20,7 @@ import {
 import { getStartupItems, setStartupEnabled } from './system/startup'
 import { getNetInfo, pingTest, dnsBench, setDns, speedTest } from './system/network'
 import { getBrowserReport, installBrowser } from './system/browser'
+import { initDiscordPresence, destroyPresence } from './system/discord'
 import { generateReport } from './system/report'
 import {
   searchDriverUpdates,
@@ -221,6 +222,8 @@ async function setupAutoUpdate(): Promise<void> {
     })
     autoUpdater.on('error', (e) => console.error('[Pkaizen] autoUpdater:', e.message))
     await autoUpdater.checkForUpdates()
+    // L'app peut rester ouverte des heures : re-check toutes les 30 min.
+    setInterval(() => autoUpdater.checkForUpdates().catch(() => undefined), 30 * 60_000)
   } catch (e) {
     console.error('[Pkaizen] autoUpdate setup:', e)
   }
@@ -242,12 +245,7 @@ if (!gotLock) {
     registerIpc()
     createWindow()
     setupAutoUpdate()
-    // Préchauffe les scans lourds en fond (priorité basse) : les onglets seront instantanés.
-    setTimeout(() => {
-      scanDrivers().catch(() => undefined)
-      getDetailedInfo().catch(() => undefined)
-      getProblemDevices().catch(() => undefined)
-    }, 4000)
+    initDiscordPresence()
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
@@ -255,5 +253,6 @@ if (!gotLock) {
 }
 
 app.on('window-all-closed', () => {
+  destroyPresence()
   app.quit()
 })

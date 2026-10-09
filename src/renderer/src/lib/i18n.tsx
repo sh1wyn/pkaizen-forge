@@ -273,6 +273,10 @@ const STR = {
     'net.vWeak': '🔴 Slow connection ({0} / {1} Mbps). Check Wi-Fi vs Ethernet, router placement, or your ISP plan.',
     'net.vUploadLow': '⚠ Upload is low ({0} Mbps): streaming and Discord screen share will suffer.',
     'net.speedNote': '💡 Measured against Cloudflare’s official endpoint — the same servers as speed.cloudflare.com.',
+    'dash.runAnalysis': 'Analyze my config',
+    'dash.loadDetails': 'Load advanced details',
+    'drv.scanAll': 'Scan drivers & components',
+    'drv.pressScan': '💡 Click “Scan drivers & components” above — nothing runs without your go, so the PC stays fast.',
     // common
     'common.lang': 'Language'
   },
@@ -530,6 +534,10 @@ const STR = {
     'net.vWeak': '🔴 Connexion lente ({0} / {1} Mbps). Vérifie Wi-Fi vs Ethernet, la position du routeur, ou ton offre internet.',
     'net.vUploadLow': '⚠ Envoi faible ({0} Mbps) : le streaming et le partage d\u2019écran Discord vont souffrir.',
     'net.speedNote': '💡 Mesuré sur l\u2019endpoint officiel Cloudflare — les mêmes serveurs que speed.cloudflare.com.',
+    'dash.runAnalysis': 'Analyser ma config',
+    'dash.loadDetails': 'Charger les détails avancés',
+    'drv.scanAll': 'Scanner pilotes & composants',
+    'drv.pressScan': '💡 Clique sur « Scanner pilotes & composants » ci-dessus — rien ne tourne sans ton accord, le PC reste fluide.',
     'common.lang': 'Langue'
   },
   es: {
@@ -785,6 +793,10 @@ const STR = {
     'net.vWeak': '🔴 Conexión lenta ({0} / {1} Mbps). Revisa Wi-Fi vs Ethernet, la posición del router o tu tarifa.',
     'net.vUploadLow': '⚠ Subida baja ({0} Mbps): el streaming y compartir pantalla en Discord sufrirán.',
     'net.speedNote': '💡 Medido contra el endpoint oficial de Cloudflare — los mismos servidores que speed.cloudflare.com.',
+    'dash.runAnalysis': 'Analizar mi config',
+    'dash.loadDetails': 'Cargar detalles avanzados',
+    'drv.scanAll': 'Escanear drivers y componentes',
+    'drv.pressScan': '💡 Pulsa “Escanear drivers y componentes” arriba — nada se ejecuta sin tu permiso, el PC sigue fluido.',
     'common.lang': 'Idioma'
   },
   ru: {
@@ -1040,6 +1052,10 @@ const STR = {
     'net.vWeak': '🔴 Медленное соединение ({0} / {1} Мбит/с). Проверьте Wi-Fi/Ethernet, расположение роутера или тариф.',
     'net.vUploadLow': '⚠ Низкая отдача ({0} Мбит/с): стриминг и демонстрация экрана в Discord пострадают.',
     'net.speedNote': '💡 Измерено через официальный endpoint Cloudflare — те же серверы, что и speed.cloudflare.com.',
+    'dash.runAnalysis': 'Анализировать мою конфигурацию',
+    'dash.loadDetails': 'Загрузить подробности',
+    'drv.scanAll': 'Сканировать драйверы и компоненты',
+    'drv.pressScan': '💡 Нажмите «Сканировать драйверы и компоненты» выше — ничего не запускается без вашего согласия.',
     'common.lang': 'Язык'
   },
   de: {
@@ -1295,6 +1311,10 @@ const STR = {
     'net.vWeak': '🔴 Langsame Verbindung ({0} / {1} Mbps). Prüfe WLAN vs. Ethernet, Routerposition oder deinen Tarif.',
     'net.vUploadLow': '⚠ Upload ist niedrig ({0} Mbps): Streaming und Discord-Bildschirmübertragung leiden.',
     'net.speedNote': '💡 Gemessen gegen den offiziellen Cloudflare-Endpunkt — dieselben Server wie speed.cloudflare.com.',
+    'dash.runAnalysis': 'Meine Konfiguration analysieren',
+    'dash.loadDetails': 'Erweiterte Details laden',
+    'drv.scanAll': 'Treiber & Komponenten scannen',
+    'drv.pressScan': '💡 Klicke oben auf „Treiber & Komponenten scannen“ — nichts läuft ohne dein OK, der PC bleibt flüssig.',
     'common.lang': 'Sprache'
   },
   pt: {
@@ -1550,6 +1570,10 @@ const STR = {
     'net.vWeak': '🔴 Conexão lenta ({0} / {1} Mbps). Verifique Wi-Fi vs Ethernet, posição do roteador ou seu plano.',
     'net.vUploadLow': '⚠ Upload baixo ({0} Mbps): streaming e compartilhamento de tela no Discord vão sofrer.',
     'net.speedNote': '💡 Medido no endpoint oficial da Cloudflare — os mesmos servidores do speed.cloudflare.com.',
+    'dash.runAnalysis': 'Analisar minha config',
+    'dash.loadDetails': 'Carregar detalhes avançados',
+    'drv.scanAll': 'Escanear drivers e componentes',
+    'drv.pressScan': '💡 Clique em “Escanear drivers e componentes” acima — nada roda sem sua permissão, o PC continua fluido.',
     'common.lang': 'Idioma'
   },
   it: {
@@ -1805,6 +1829,10 @@ const STR = {
     'net.vWeak': '🔴 Connessione lenta ({0} / {1} Mbps). Controlla Wi-Fi vs Ethernet, posizione del router o il tuo piano.',
     'net.vUploadLow': '⚠ Upload basso ({0} Mbps): streaming e condivisione schermo su Discord ne soffriranno.',
     'net.speedNote': '💡 Misurato sull\u2019endpoint ufficiale Cloudflare — gli stessi server di speed.cloudflare.com.',
+    'dash.runAnalysis': 'Analizza la mia config',
+    'dash.loadDetails': 'Carica dettagli avanzati',
+    'drv.scanAll': 'Scansiona driver e componenti',
+    'drv.pressScan': '💡 Premi “Scansiona driver e componenti” qui sopra — niente gira senza il tuo consenso, il PC resta fluido.',
     'common.lang': 'Lingua'
   }
 } as const

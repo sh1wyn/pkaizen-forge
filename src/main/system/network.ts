@@ -138,9 +138,16 @@ export async function setDns(preset: string): Promise<ActionResult> {  const ser
 /*  Speedtest réel via l'endpoint officiel Cloudflare (speed.cloudflare.com) */
 /* ------------------------------------------------------------- */
 
-const DOWN_BYTES = 200_000_000
-const DOWN_MAX_MS = 10_000
-const UP_BYTES = 25_000_000
+// Cloudflare renvoie 403 sans ces en-têtes de navigateur.
+const CF_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36',
+  Referer: 'https://speed.cloudflare.com/'
+}
+
+const DOWN_STREAMS = 4
+const DOWN_MS = 8000
+const UP_STREAMS = 3
+const UP_BYTES_EACH = 15_000_000
 
 export async function speedTest(
   onProgress: (phase: 'down' | 'up', mbps: number, percent: number) => void
@@ -148,50 +155,73 @@ export async function speedTest(
   let downMbps: number | null = null
   let upMbps: number | null = null
 
+  // --- Download : 4 connexions parallèles (comme Speedtest), mesure après la montée TCP ---
   try {
     const ctrl = new AbortController()
-    let received = 0
-    let started = 0 // démarre au 1er chunk : exclut la latence de connexion de la mesure
-    const res = await fetch(`https://speed.cloudflare.com/__down?bytes=${DOWN_BYTES}`, { signal: ctrl.signal })
-    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
-    const reader = (res.body as ReadableStream<Uint8Array>).getReader()
-    try {
+    let total = 0
+    let started = 0
+    let warmupBytes = -1 // octets reçus à t=1s, exclus de la mesure finale
+
+    const streamJob = async (): Promise<void> => {
+      const res = await fetch('https://speed.cloudflare.com/__down?bytes=500000000', {
+        signal: ctrl.signal,
+        headers: CF_HEADERS
+      })
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
+      const reader = (res.body as ReadableStream<Uint8Array>).getReader()
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
         if (started === 0) started = performance.now()
-        received += value?.length ?? 0
+        total += value?.length ?? 0
         const elapsed = performance.now() - started
-        if (elapsed > 300) {
-          const mbps = (received * 8) / (elapsed / 1000) / 1e6
-          onProgress('down', Math.round(mbps * 10) / 10, Math.min(100, Math.round((elapsed / DOWN_MAX_MS) * 100)))
+        if (warmupBytes < 0 && elapsed >= 1000) warmupBytes = total
+        if (elapsed > 400) {
+          const mbps = (total * 8) / (elapsed / 1000) / 1e6
+          onProgress('down', Math.round(mbps * 10) / 10, Math.min(100, Math.round((elapsed / DOWN_MS) * 100)))
         }
-        if (elapsed > DOWN_MAX_MS) {
+        if (elapsed > DOWN_MS) {
           ctrl.abort()
           break
         }
       }
-    } catch (e) {
-      if ((e as Error).name !== 'AbortError') throw e
     }
-    const downMs = started > 0 ? Math.min(performance.now() - started, DOWN_MAX_MS) : 0
-    if (received > 0 && downMs > 0) downMbps = Math.round(((received * 8) / (downMs / 1000) / 1e6) * 10) / 10
+
+    await Promise.allSettled(Array.from({ length: DOWN_STREAMS }, streamJob))
+    const elapsed = started > 0 ? Math.min(performance.now() - started, DOWN_MS + 500) : 0
+    if (total > 0 && elapsed > 0) {
+      // Vitesse stabilisée : on exclut la 1re seconde (montée en charge TCP) si possible.
+      const mbps =
+        warmupBytes > 0 && elapsed > 2500
+          ? ((total - warmupBytes) * 8) / ((elapsed - 1000) / 1000) / 1e6
+          : (total * 8) / (elapsed / 1000) / 1e6
+      downMbps = Math.round(mbps * 10) / 10
+      onProgress('down', downMbps, 100)
+    }
   } catch {
     downMbps = null
   }
 
+  // --- Upload : 3 envois parallèles ---
   try {
     onProgress('up', 0, 0)
-    const payload = Buffer.alloc(UP_BYTES, 0x50)
+    const payload = Buffer.alloc(UP_BYTES_EACH, 0x50)
     const t1 = performance.now()
-    await fetch('https://speed.cloudflare.com/__up', {
-      method: 'POST',
-      body: payload,
-      headers: { 'Content-Type': 'application/octet-stream' }
-    })
+    const results = await Promise.allSettled(
+      Array.from({ length: UP_STREAMS }, () =>
+        fetch('https://speed.cloudflare.com/__up', {
+          method: 'POST',
+          body: payload,
+          headers: { ...CF_HEADERS, 'Content-Type': 'application/octet-stream' }
+        })
+      )
+    )
+    const okCount = results.filter((r) => r.status === 'fulfilled' && r.value.ok).length
     const upMs = performance.now() - t1
-    upMbps = Math.round(((UP_BYTES * 8) / (upMs / 1000) / 1e6) * 10) / 10
-    onProgress('up', upMbps, 100)
+    if (okCount > 0 && upMs > 0) {
+      upMbps = Math.round(((okCount * UP_BYTES_EACH * 8) / (upMs / 1000) / 1e6) * 10) / 10
+      onProgress('up', upMbps, 100)
+    }
   } catch {
     upMbps = null
   }

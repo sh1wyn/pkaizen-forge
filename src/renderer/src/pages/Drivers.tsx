@@ -45,11 +45,34 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
 
   useEffect(() => {
     cached('drv:links', () => window.api.getVendorLinks()).then(setLinks)
-    cached('drv:installed', () => window.api.scanDrivers()).then(setInstalled)
-    cached('drv:gpu', () => window.api.getGpuDriverStatus(), 10 * 60_000).then(setGpuStatus).catch(() => setGpuStatus([]))
-    cached('drv:problems', () => window.api.getProblemDevices()).then(setProblems).catch(() => setProblems([]))
-    cached('drv:checklist', () => window.api.getComponentChecklist(), 10 * 60_000).then(setChecklist).catch(() => setChecklist([]))
   }, [])
+
+  const [scanBusy, setScanBusy] = useState(false)
+  const scanAll = async (): Promise<void> => {
+    setScanBusy(true)
+    // Séquentiel volontaire : aucun pic de charge sur les petits PC.
+    try {
+      setGpuStatus(await cached('drv:gpu', () => window.api.getGpuDriverStatus(), 10 * 60_000))
+    } catch {
+      setGpuStatus([])
+    }
+    try {
+      setProblems(await cached('drv:problems', () => window.api.getProblemDevices()))
+    } catch {
+      setProblems([])
+    }
+    try {
+      setChecklist(await cached('drv:checklist', () => window.api.getComponentChecklist(), 10 * 60_000))
+    } catch {
+      setChecklist([])
+    }
+    try {
+      setInstalled(await cached('drv:installed', () => window.api.scanDrivers()))
+    } catch {
+      setInstalled([])
+    }
+    setScanBusy(false)
+  }
 
   const searchWu = async (): Promise<void> => {
     setWuSearching(true)
@@ -93,6 +116,12 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
       <h1>{t('drv.title')}</h1>
       <p className="subtitle">{t('drv.subtitle')}</p>
 
+      <div className="toolbar">
+        <button className="btn primary" disabled={scanBusy} onClick={scanAll}>
+          {scanBusy ? <span className="spinner" /> : '🔍'} {t('drv.scanAll')}
+        </button>
+      </div>
+
       {rebootNeeded && (
         <div className="banner ok">
           {t('drv.rebootBanner')}
@@ -103,7 +132,8 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
       )}
 
       <div className="section-title">{t('drv.gpuSection')}</div>
-      {gpuStatus === null && (
+      {gpuStatus === null && !scanBusy && <div className="banner info">{t('drv.pressScan')}</div>}
+      {gpuStatus === null && scanBusy && (
         <div className="card" style={{ marginBottom: 14 }}>
           <span className="spinner" /> <span className="muted">{t('drv.gpuChecking')}</span>
         </div>
@@ -173,7 +203,7 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
 
       <div className="section-title">{t('drv.checklist')}</div>
       <div className="banner info">{t('drv.checklistTip')}</div>
-      {checklist === null && (
+      {checklist === null && scanBusy && (
         <div className="card" style={{ marginBottom: 14 }}>
           <span className="spinner" /> <span className="muted">{t('drv.inventory')}</span>
         </div>
@@ -291,7 +321,7 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
       ))}
 
       <div className="section-title">{t('drv.installedSection')}</div>
-      {installed === null && (
+      {installed === null && scanBusy && (
         <div className="card">
           <span className="spinner" /> <span className="muted">{t('drv.scanning')}</span>
         </div>

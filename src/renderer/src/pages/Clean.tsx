@@ -25,8 +25,7 @@ export default function Clean({ isAdmin }: { isAdmin: boolean }): React.JSX.Elem
   }
 
   useEffect(() => {
-    analyze()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Pas d'analyse auto : l'utilisateur lance avec le bouton (évite la charge à l'ouverture).
   }, [])
 
   const toggleSel = (id: string): void => {
