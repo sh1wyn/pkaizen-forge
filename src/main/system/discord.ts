@@ -1,7 +1,7 @@
 import { Client } from '@xhayper/discord-rpc'
 
 // Application créée sur discord.com/developers (nom + images affichés dans le profil).
-const CLIENT_ID = '1425912345678901234'
+const CLIENT_ID = '1557964587800858644'
 
 let client: Client | null = null
 let connected = false
