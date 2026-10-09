@@ -41,15 +41,11 @@ async function collectSystemReport(): Promise<SystemReport> {
       ? Math.round((battery.maxCapacity / battery.designedCapacity) * 100)
       : null
 
-  // ProductName/distro peut dire "Windows 10" sur Win11 : le build fait foi.
-  const buildNum = parseInt(osInfo.build, 10) || 0
-  const distro = buildNum >= 22000 ? osInfo.distro.replace(/Windows 10/i, 'Windows 11') : osInfo.distro
-
   return {
     isLaptop,
     manufacturer: system.manufacturer || baseboard.manufacturer || 'Inconnu',
     model: system.model || baseboard.model || 'Inconnu',
-    os: { distro, release: osInfo.release, build: osInfo.build, arch: osInfo.arch },
+    os: { distro: osInfo.distro, release: osInfo.release, build: osInfo.build, arch: osInfo.arch },
     cpu: {
       brand: `${cpu.manufacturer} ${cpu.brand}`.trim(),
       cores: cpu.cores,

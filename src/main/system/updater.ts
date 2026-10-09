@@ -37,8 +37,9 @@ export async function installDriverUpdates(ids: string[]): Promise<WuInstallResu
   if (ids.length === 0) return { ok: false, rebootRequired: false, installed: 0, message: 'Aucun pilote sélectionné.' }
   const idFilter = ids.map((i) => `'${i.replace(/'/g, '')}'`).join(',')
   try {
-    const raw = await psJson<{ installed: number; reboot: boolean; status: string }>(
+      const raw = await psJson<{ installed: number; requested: number; reboot: boolean; status: string }>(
       `
+      $ErrorActionPreference='Stop'
       $wanted = @(${idFilter})
       $session = New-Object -ComObject Microsoft.Update.Session
       $searcher = $session.CreateUpdateSearcher()
@@ -60,13 +61,17 @@ export async function installDriverUpdates(ids: string[]): Promise<WuInstallResu
       $installer = $session.CreateUpdateInstaller()
       $installer.Updates = $coll
       $r = $installer.Install()
-      ConvertTo-Json @{ installed = $coll.Count; reboot = [bool]$r.RebootRequired; status = "Code resultat: $($r.ResultCode)" }
+      $installed = 0
+      for ($index = 0; $index -lt $coll.Count; $index++) {
+        if ($r.GetUpdateResult($index).ResultCode -eq 2) { $installed++ }
+      }
+      ConvertTo-Json @{ installed = $installed; requested = $wanted.Count; reboot = [bool]$r.RebootRequired; status = "$installed/$($wanted.Count) installed; result: $($r.ResultCode)" }
       `,
       1800000
     )
     if (!raw) return { ok: false, rebootRequired: false, installed: 0, message: 'Réponse vide de Windows Update.' }
     return {
-      ok: raw.installed > 0,
+      ok: raw.installed > 0 && raw.installed === raw.requested,
       rebootRequired: raw.reboot,
       installed: raw.installed,
       message: raw.status
@@ -105,6 +110,24 @@ export async function rebootNow(): Promise<void> {
  * Télécharge l'installeur NVIDIA directement depuis le CDN officiel (URL fournie
  * par l'API nvidia.com) puis lance l'installeur. Refuse toute URL hors nvidia.com.
  */
+export async function fetchNvidiaInstaller(url: string, signal: AbortSignal): Promise<Response> {
+  let current = new URL(url)
+  for (let redirects = 0; redirects <= 5; redirects++) {
+    const host = current.hostname.toLowerCase()
+    if (current.protocol !== 'https:' || current.username || current.password ||
+      !(host === 'nvidia.com' || host.endsWith('.nvidia.com'))) {
+      throw new Error('Only official NVIDIA HTTPS downloads are allowed')
+    }
+    const response = await fetch(current.href, { signal, redirect: 'manual' })
+    if (![301, 302, 303, 307, 308].includes(response.status)) return response
+    const location = response.headers.get('location')
+    await response.body?.cancel()
+    if (!location) throw new Error('NVIDIA redirect has no destination')
+    current = new URL(location, current)
+  }
+  throw new Error('Too many NVIDIA redirects')
+}
+
 export async function downloadAndRunNvidiaInstaller(
   url: string,
   onProgress?: (percent: number) => void
@@ -122,18 +145,30 @@ export async function downloadAndRunNvidiaInstaller(
     const { Readable } = await import('stream')
     const { join } = await import('path')
 
-    const res = await fetch(url)
+    const signal = AbortSignal.timeout(20 * 60_000)
+    const res = await fetchNvidiaInstaller(url, signal)
     if (!res.ok || !res.body) return { ok: false, message: `Téléchargement échoué (HTTP ${res.status}).` }
 
     const total = Number(res.headers.get('content-length') || 0)
     const dest = join(app.getPath('temp'), `pkaizen-nvidia-${Date.now()}.exe`)
     let done = 0
+    let lastPercent = -1
     const reader = Readable.fromWeb(res.body as never)
     reader.on('data', (chunk: Buffer) => {
       done += chunk.length
-      if (total > 0 && onProgress) onProgress(Math.round((done / total) * 100))
+      const percent = Math.min(100, Math.round((done / total) * 100))
+      if (total > 0 && percent !== lastPercent && onProgress) {
+        lastPercent = percent
+        onProgress(percent)
+      }
     })
-    await pipeline(reader, createWriteStream(dest))
+    try {
+      await pipeline(reader, createWriteStream(dest, { flags: 'wx' }), { signal })
+    } catch (error) {
+      const { unlink } = await import('fs/promises')
+      await unlink(dest).catch(() => undefined)
+      throw error
+    }
 
     const err = await shell.openPath(dest)
     if (err) return { ok: false, message: T(`Could not launch the installer: ${err}`, `Impossible de lancer l'installeur : ${err}`) }

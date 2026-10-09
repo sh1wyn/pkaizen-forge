@@ -20,19 +20,27 @@ export default function Startup(): React.JSX.Element {
   }
 
   useEffect(() => {
-    load()
+    void load().catch((error) => {
+      setItems([])
+      toast(String(error), 'error')
+    })
   }, [])
 
   const toggle = async (item: StartupItem): Promise<void> => {
     setBusy(item.name)
-    const res = await window.api.setStartupEnabled(item.name, !item.enabled)
-    if (res.ok) {
-      toast(item.enabled ? t('start.wontRun', item.name) : t('start.reenabled', item.name), 'success')
-      await load()
-    } else {
-      toast(res.message || 'KO', 'error')
+    try {
+      const res = await window.api.setStartupEnabled(item.name, !item.enabled)
+      if (res.ok) {
+        toast(item.enabled ? t('start.wontRun', item.name) : t('start.reenabled', item.name), 'success')
+        await load()
+      } else {
+        toast(res.message || 'KO', 'error')
+      }
+    } catch (error) {
+      toast(String(error), 'error')
+    } finally {
+      setBusy(null)
     }
-    setBusy(null)
   }
 
   return (

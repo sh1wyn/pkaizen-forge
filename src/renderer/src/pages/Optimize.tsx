@@ -20,6 +20,7 @@ export default function Optimize({ isAdmin }: { isAdmin: boolean }): React.JSX.E
   const [report, setReport] = useState<SystemReport | null>(null)
   const [relevance, setRelevance] = useState<Record<string, TweakRelevance>>({})
   const [restoreBusy, setRestoreBusy] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const toast = useToast()
 
   const refresh = async (): Promise<void> => {
@@ -48,12 +49,15 @@ export default function Optimize({ isAdmin }: { isAdmin: boolean }): React.JSX.E
   const toggle = async (tw: TweakInfo): Promise<void> => {
     if (busy || !ready) return
     setBusy(tw.id)
+    setErrors((previous) => ({ ...previous, [tw.id]: '' }))
     try {
       const applied = states[tw.id]?.applied
       const res = applied ? await window.api.revertTweak(tw.id) : await window.api.applyTweak(tw.id)
+      if (!res.ok) setErrors((previous) => ({ ...previous, [tw.id]: res.message || 'KO' }))
       toast(res.message || (res.ok ? 'OK' : 'KO'), res.ok ? 'success' : 'error')
       await refresh()
     } catch (error) {
+      setErrors((previous) => ({ ...previous, [tw.id]: String(error) }))
       toast(String(error), 'error')
     } finally {
       setBusy(null)
@@ -64,15 +68,26 @@ export default function Optimize({ isAdmin }: { isAdmin: boolean }): React.JSX.E
     if (busy || !ready) return
     setBusy('__all__')
     let okCount = 0
+    let failed = false
     try {
       for (const tw of tweaks.filter((x) => x.recommended && !states[x.id]?.applied)) {
         if (tw.needsAdmin && !isAdmin) continue
         if (tw.laptopWarning && report?.isLaptop) continue
-        const res = await window.api.applyTweak(tw.id)
-        if (res.ok) okCount++
+        setErrors((previous) => ({ ...previous, [tw.id]: '' }))
+        try {
+          const res = await window.api.applyTweak(tw.id)
+          if (res.ok) okCount++
+          else {
+            failed = true
+            setErrors((previous) => ({ ...previous, [tw.id]: res.message || 'KO' }))
+          }
+        } catch (error) {
+          failed = true
+          setErrors((previous) => ({ ...previous, [tw.id]: String(error) }))
+        }
       }
       await refresh()
-      toast(`${okCount} ${t('opt.applied')}`, 'success')
+      toast(`${okCount} ${t('opt.applied')}`, failed ? 'error' : 'success')
     } catch (error) {
       toast(String(error), 'error')
     } finally {
@@ -164,6 +179,11 @@ export default function Optimize({ isAdmin }: { isAdmin: boolean }): React.JSX.E
                       {tw.laptopWarning && report?.isLaptop && <span className="badge laptop">{t('opt.battery')}</span>}
                     </div>
                     <div className="row-desc">{tw.description}</div>
+                    {errors[tw.id] && (
+                      <div role="alert" className="row-desc" style={{ color: 'var(--red)', userSelect: 'text' }}>
+                        {errors[tw.id]}
+                      </div>
+                    )}
                     {rel && (
                       <div className="row-desc" style={{ marginTop: 4, color: 'var(--accent2)' }}>
                         📌 {rel.reason}

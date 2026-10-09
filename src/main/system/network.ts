@@ -102,16 +102,22 @@ const DNS_PRESETS: Record<string, string[] | null> = {
 }
 
 /** Change le DNS de l'interface par défaut en 1 clic (admin requis). */
-export async function setDns(preset: string): Promise<ActionResult> {  const servers = DNS_PRESETS[preset]
+export async function setDns(preset: string): Promise<ActionResult> {
+  if (!Object.prototype.hasOwnProperty.call(DNS_PRESETS, preset)) {
+    return { ok: false, message: T('Unknown DNS preset.', 'Configuration DNS inconnue.') }
+  }
+  const servers = DNS_PRESETS[preset]
   try {
     const script = `
+      $ErrorActionPreference='Stop'
       $idx = (Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop | Sort-Object RouteMetric | Select-Object -First 1).InterfaceIndex
+      if ($null -eq $idx) { throw 'No active IPv4 default route' }
       ${servers ? `Set-DnsClientServerAddress -InterfaceIndex $idx -ServerAddresses ${servers.join(',')} -ErrorAction Stop` : `Set-DnsClientServerAddress -InterfaceIndex $idx -ResetServerAddresses -ErrorAction Stop`}
       Clear-DnsClientCache
       'OK'
     `
-    const out = await ps(script, 30000)
-    if (!out.includes('OK')) {
+    const out = await ps(script, 30000, true)
+    if (out.trim() !== 'OK') {
       return {
         ok: false,
         message: T(
@@ -129,7 +135,7 @@ export async function setDns(preset: string): Promise<ActionResult> {  const ser
   } catch (e) {
     return {
       ok: false,
-      message: T('Failed (admin required): ', 'Échec (admin requis) : ') + (e as Error).message
+      message: T('DNS change failed: ', 'Échec du changement DNS : ') + (e as Error).message
     }
   }
 }
@@ -147,17 +153,30 @@ const CF_HEADERS = {
 const DOWN_STREAMS = 4
 const DOWN_MS = 6000
 const UP_STREAMS = 3
-const UP_BYTES_EACH = 10_000_000
+const UP_BYTES_EACH = 2_000_000
 
 export async function speedTest(
-  onProgress: (phase: 'down' | 'up', mbps: number, percent: number) => void
+  onProgress: (phase: 'down' | 'up', mbps: number, percent: number) => void,
+  signal?: AbortSignal
 ): Promise<SpeedResult> {
+  signal?.throwIfAborted()
   let downMbps: number | null = null
   let upMbps: number | null = null
+  let lastProgress = -Infinity
+  const progress = (phase: 'down' | 'up', mbps: number, percent: number): void => {
+    const now = performance.now()
+    if (signal?.aborted || (percent !== 0 && percent !== 100 && now - lastProgress < 250)) return
+    lastProgress = now
+    onProgress(phase, mbps, percent)
+  }
 
   // --- Download : 4 connexions parallèles (comme Speedtest), mesure après la montée TCP ---
+  const ctrl = new AbortController()
+  const cancelDownload = (): void => ctrl.abort()
+  signal?.addEventListener('abort', cancelDownload, { once: true })
+  const downloadDeadline = setTimeout(cancelDownload, 12_000)
+  let measurementDeadline: ReturnType<typeof setTimeout> | undefined
   try {
-    const ctrl = new AbortController()
     let total = 0
     let started = 0
     let warmupBytes = -1 // octets reçus à t=1s, exclus de la mesure finale
@@ -172,13 +191,16 @@ export async function speedTest(
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
-        if (started === 0) started = performance.now()
+        if (started === 0) {
+          started = performance.now()
+          measurementDeadline = setTimeout(cancelDownload, DOWN_MS)
+        }
         total += value?.length ?? 0
         const elapsed = performance.now() - started
         if (warmupBytes < 0 && elapsed >= 1000) warmupBytes = total
         if (elapsed > 400) {
           const mbps = (total * 8) / (elapsed / 1000) / 1e6
-          onProgress('down', Math.round(mbps * 10) / 10, Math.min(100, Math.round((elapsed / DOWN_MS) * 100)))
+          progress('down', Math.round(mbps * 10) / 10, Math.min(99, Math.round((elapsed / DOWN_MS) * 100)))
         }
         if (elapsed > DOWN_MS) {
           ctrl.abort()
@@ -196,46 +218,67 @@ export async function speedTest(
           ? ((total - warmupBytes) * 8) / ((elapsed - 1000) / 1000) / 1e6
           : (total * 8) / (elapsed / 1000) / 1e6
       downMbps = Math.round(mbps * 10) / 10
-      onProgress('down', downMbps, 100)
+      progress('down', downMbps, 100)
     }
   } catch {
     downMbps = null
+  } finally {
+    clearTimeout(downloadDeadline)
+    clearTimeout(measurementDeadline)
+    ctrl.abort()
+    signal?.removeEventListener('abort', cancelDownload)
   }
+  signal?.throwIfAborted()
 
   // --- Upload : 3 envois parallèles, 2e passe plus grosse si la ligne est rapide ---
   try {
-    onProgress('up', 0, 0)
+    progress('up', 0, 0)
     const measureUpload = async (bytesEach: number): Promise<{ mbps: number; ms: number } | null> => {
+      signal?.throwIfAborted()
+      const uploadController = new AbortController()
+      const cancelUpload = (): void => uploadController.abort()
+      signal?.addEventListener('abort', cancelUpload, { once: true })
+      const deadline = setTimeout(cancelUpload, 15_000)
+      try {
       const payload = Buffer.alloc(bytesEach, 0x50)
       const t1 = performance.now()
       const results = await Promise.allSettled(
-        Array.from({ length: UP_STREAMS }, () =>
-          fetch('https://speed.cloudflare.com/__up', {
+        Array.from({ length: UP_STREAMS }, async () => {
+          const response = await fetch('https://speed.cloudflare.com/__up', {
             method: 'POST',
             body: payload,
+            signal: uploadController.signal,
             headers: { ...CF_HEADERS, 'Content-Type': 'application/octet-stream' }
           })
-        )
+          await response.body?.cancel()
+          return response.ok
+        })
       )
-      const okCount = results.filter((r) => r.status === 'fulfilled' && r.value.ok).length
+      const okCount = results.filter((result) => result.status === 'fulfilled' && result.value).length
       const ms = performance.now() - t1
       if (okCount === 0 || ms <= 0) return null
       return { mbps: (okCount * bytesEach * 8) / (ms / 1000) / 1e6, ms }
+      } finally {
+        clearTimeout(deadline)
+        uploadController.abort()
+        signal?.removeEventListener('abort', cancelUpload)
+      }
     }
 
     let m = await measureUpload(UP_BYTES_EACH)
     // Ligne rapide : mesure trop courte pour être fiable → 2e passe avec 4× plus de données.
     if (m && m.ms < 2000) {
-      onProgress('up', Math.round(m.mbps * 10) / 10, 50)
+      progress('up', Math.round(m.mbps * 10) / 10, 50)
       m = (await measureUpload(UP_BYTES_EACH * 4)) ?? m
     }
     if (m) {
       upMbps = Math.round(m.mbps * 10) / 10
-      onProgress('up', upMbps, 100)
+      progress('up', upMbps, 100)
     }
   } catch {
     upMbps = null
   }
 
+  signal?.throwIfAborted()
   return { downMbps, upMbps }
 }

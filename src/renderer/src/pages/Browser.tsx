@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { BrowserReport } from '../../../shared/types'
 import { cached, invalidate } from '../lib/cache'
 import { useI18n, type StrKey } from '../lib/i18n'
@@ -43,21 +43,27 @@ export default function Browser(): React.JSX.Element {
     setDetectBusy(true)
     try {
       setReport(await cached('browser', () => window.api.getBrowserReport(), 60_000))
-    } catch {
+    } catch (error) {
       setReport(null)
+      toast(String(error), 'error')
     }
     setDetectBusy(false)
   }
 
   const install = async (id: string): Promise<void> => {
     setBusy(id)
-    const res = await window.api.installBrowser(id)
-    toast(res.message || '', res.ok ? 'success' : 'error')
-    if (res.ok) {
-      invalidate('browser')
-      setReport(await window.api.getBrowserReport())
+    try {
+      const res = await window.api.installBrowser(id)
+      toast(res.message || '', res.ok ? 'success' : 'error')
+      if (res.ok) {
+        invalidate('browser')
+        setReport(await window.api.getBrowserReport())
+      }
+    } catch (error) {
+      toast(String(error), 'error')
+    } finally {
+      setBusy(null)
     }
-    setBusy(null)
   }
 
   const defaultName = report?.defaultBrowser ? NAME_MAP[report.defaultBrowser] || report.defaultBrowser : null

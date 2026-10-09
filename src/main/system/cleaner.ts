@@ -13,8 +13,25 @@ interface Target {
   clean: string
 }
 
-const folderSize = (p: string): string =>
-  `[int64]((Get-ChildItem -LiteralPath ${p} -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum)`
+const temporaryFiles = (path: string, clean: boolean): string => `
+  $root = Get-Item -LiteralPath ${path} -Force -ErrorAction Stop
+  if (-not $root.PSIsContainer -or ($root.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Invalid temporary directory' }
+  $cutoff = (Get-Date).AddDays(-7)
+  $pending = New-Object 'System.Collections.Generic.Stack[string]'
+  $pending.Push($root.FullName)
+  [int64]$total = 0
+  while ($pending.Count -gt 0) {
+    $directory = $pending.Pop()
+    foreach ($entry in (Get-ChildItem -LiteralPath $directory -Force -ErrorAction SilentlyContinue)) {
+      if ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+      if ($entry.PSIsContainer) { $pending.Push($entry.FullName) }
+      elseif ($entry.LastWriteTime -lt $cutoff) {
+        ${clean ? 'Remove-Item -LiteralPath $entry.FullName -Force -ErrorAction SilentlyContinue' : '$total += $entry.Length'}
+      }
+    }
+  }
+  ${clean ? '' : '$total'}
+`
 
 const TARGETS: Target[] = [
   {
@@ -22,27 +39,16 @@ const TARGETS: Target[] = [
     name: 'Fichiers temporaires utilisateur',
     description: 'Contenu de %TEMP% — sans risque, les fichiers en cours d\u2019utilisation sont ignorés.',
     needsAdmin: false,
-    size: folderSize('$env:TEMP'),
-    clean: `Get-ChildItem -LiteralPath $env:TEMP -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue`
+    size: temporaryFiles('$env:TEMP', false),
+    clean: temporaryFiles('$env:TEMP', true)
   },
   {
     id: 'win-temp',
     name: 'Fichiers temporaires Windows',
     description: 'C:\\Windows\\Temp — nécessite les droits administrateur.',
     needsAdmin: true,
-    size: folderSize("'C:\\Windows\\Temp'"),
-    clean: `Get-ChildItem -LiteralPath 'C:\\Windows\\Temp' -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue`
-  },
-  {
-    id: 'wu-cache',
-    name: 'Cache Windows Update',
-    description: 'Anciens fichiers de mise à jour déjà installés (SoftwareDistribution\\Download).',
-    needsAdmin: true,
-    size: folderSize("'C:\\Windows\\SoftwareDistribution\\Download'"),
-    clean: `
-      Stop-Service wuauserv -Force -ErrorAction SilentlyContinue
-      Get-ChildItem -LiteralPath 'C:\\Windows\\SoftwareDistribution\\Download' -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-      Start-Service wuauserv -ErrorAction SilentlyContinue`
+    size: temporaryFiles('(Join-Path $env:SystemRoot Temp)', false),
+    clean: temporaryFiles('(Join-Path $env:SystemRoot Temp)', true)
   },
   {
     id: 'thumbs',
@@ -76,15 +82,11 @@ export async function previewClean(): Promise<CleanTarget[]> {
   const LABELS: Record<string, { name: string; description: string }> = {
     'user-temp': {
       name: T('User temporary files', 'Fichiers temporaires utilisateur'),
-      description: T('Contents of %TEMP% — risk-free, in-use files are skipped.', 'Contenu de %TEMP% — sans risque, les fichiers en cours d\u2019utilisation sont ignorés.')
+      description: T('Temporary files older than 7 days. Locked files and directory links are skipped.', 'Fichiers temporaires de plus de 7 jours. Fichiers verrouillés et liens de dossiers ignorés.')
     },
     'win-temp': {
       name: T('Windows temporary files', 'Fichiers temporaires Windows'),
-      description: T('C:\\Windows\\Temp — requires administrator rights.', 'C:\\Windows\\Temp — nécessite les droits administrateur.')
-    },
-    'wu-cache': {
-      name: T('Windows Update cache', 'Cache Windows Update'),
-      description: T('Old update files already installed (SoftwareDistribution\\Download).', 'Anciens fichiers de mise à jour déjà installés (SoftwareDistribution\\Download).')
+      description: T('Windows temporary files older than 7 days. Administrator rights required.', 'Fichiers temporaires Windows de plus de 7 jours. Droits administrateur requis.')
     },
     thumbs: {
       name: T('Thumbnail cache', 'Cache des miniatures'),
@@ -122,7 +124,7 @@ export async function runClean(ids: string[]): Promise<CleanResult[]> {
     if (!t) continue
     try {
       const before = (await psJson<number>(t.size, 45000)) ?? 0
-      await ps(t.clean, 120000)
+      await ps(t.clean, 120000, true)
       const after = (await psJson<number>(t.size, 45000)) ?? 0
       results.push({ id, ok: true, freedMB: Math.max(0, Math.round(((before - after) / 1024 / 1024) * 10) / 10) })
     } catch (e) {

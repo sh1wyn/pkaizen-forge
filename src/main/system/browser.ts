@@ -31,7 +31,7 @@ export async function getBrowserReport(): Promise<BrowserReport> {
     `
     $progId = (Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice' -ErrorAction SilentlyContinue).ProgId
     $installed = @()
-    foreach ($root in @('HKLM:\\SOFTWARE\\Clients\\StartMenuInternet', 'HKCU:\\SOFTWARE\\Clients\\StartMenuInternet')) {
+    foreach ($root in @('HKLM:\\SOFTWARE\\Clients\\StartMenuInternet', 'HKCU:\\SOFTWARE\\Clients\\StartMenuInternet', 'HKLM:\\SOFTWARE\\WOW6432Node\\Clients\\StartMenuInternet')) {
       Get-ChildItem $root -ErrorAction SilentlyContinue | ForEach-Object { $installed += $_.PSChildName }
     }
     $procs = @('chrome','msedge','firefox','brave','opera','vivaldi','librewolf')
@@ -66,7 +66,6 @@ export async function getBrowserReport(): Promise<BrowserReport> {
     else if (name.includes('vivaldi')) installed.add('vivaldi')
     else if (name.includes('librewolf')) installed.add('librewolf')
   }
-  installed.add('edge') // toujours présent sur Windows
 
   return {
     defaultBrowser,
@@ -88,6 +87,7 @@ const WINGET_IDS: Record<string, string> = {
 }
 
 export async function installBrowser(id: string): Promise<ActionResult> {
+  if (!Object.prototype.hasOwnProperty.call(WINGET_IDS, id)) return { ok: false, message: 'Unknown browser.' }
   const wingetId = WINGET_IDS[id]
   if (!wingetId) return { ok: false, message: 'Unknown browser.' }
   try {

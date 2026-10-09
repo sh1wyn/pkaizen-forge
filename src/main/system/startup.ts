@@ -52,17 +52,23 @@ export async function setStartupEnabled(name: string, enable: boolean): Promise<
   try {
     const out = await ps(
       `
-      $v = (Get-ItemProperty -Path '${from}' -ErrorAction SilentlyContinue).'${name.replace(/'/g, "''")}'
+      $ErrorActionPreference='Stop'
+      $v = (Get-ItemProperty -LiteralPath '${from}' -ErrorAction Stop).'${name.replace(/'/g, "''")}'
       if ($null -ne $v) {
+        $existing = Get-ItemProperty -LiteralPath '${to}' -Name '${name.replace(/'/g, "''")}' -ErrorAction SilentlyContinue
+        if ($null -ne $existing) { throw 'A startup entry with this name already exists in the destination' }
         New-Item -Path '${to}' -Force | Out-Null
         Set-ItemProperty -Path '${to}' -Name '${name.replace(/'/g, "''")}' -Value $v
-        Remove-ItemProperty -Path '${from}' -Name '${name.replace(/'/g, "''")}' -ErrorAction SilentlyContinue
+        $saved = (Get-ItemProperty -LiteralPath '${to}' -Name '${name.replace(/'/g, "''")}' -ErrorAction Stop).'${name.replace(/'/g, "''")}'
+        if ($saved -cne $v) { throw 'Startup backup verification failed' }
+        Remove-ItemProperty -Path '${from}' -Name '${name.replace(/'/g, "''")}' -ErrorAction Stop
         'OK'
       } else { 'NOTFOUND' }
       `,
-      15000
+      15000,
+      true
     )
-    if (out.includes('OK')) return { ok: true }
+    if (out.trim() === 'OK') return { ok: true }
     return { ok: false, message: 'Élément introuvable.' }
   } catch (e) {
     return { ok: false, message: (e as Error).message }

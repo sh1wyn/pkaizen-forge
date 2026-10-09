@@ -10,14 +10,20 @@ export default function Report(): React.JSX.Element {
 
   const generate = async (): Promise<void> => {
     setBusy(true)
-    const res = await window.api.generateReport()
-    if (res.ok) {
-      setLastPath(res.path ?? null)
-      toast(t('rep.done'), 'success')
-    } else {
-      toast(res.message || t('rep.fail'), 'error')
+    setLastPath(null)
+    try {
+      const res = await window.api.generateReport()
+      if (res.ok) {
+        setLastPath(res.path ?? null)
+        toast(t('rep.done'), 'success')
+      } else {
+        toast(res.message || t('rep.fail'), 'error')
+      }
+    } catch (error) {
+      toast(String(error), 'error')
+    } finally {
+      setBusy(false)
     }
-    setBusy(false)
   }
 
   return (

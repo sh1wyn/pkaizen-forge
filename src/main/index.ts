@@ -36,6 +36,7 @@ let isAdminCached: boolean | null = null
 if (process.argv.includes('--safe-mode')) app.disableHardwareAcceleration()
 let mainWin: BrowserWindow | null = null
 let diskController: AbortController | null = null
+let speedController: AbortController | null = null
 
 // Jamais de crash silencieux : on logge et on continue.
 function logError(context: string, error: unknown): void {
@@ -97,15 +98,19 @@ function createWindow(): void {
   })
   mainWin = win
   win.on('closed', () => {
+    speedController?.abort()
+    diskController?.abort()
     if (mainWin === win) mainWin = null
   })
   win.webContents.on('unresponsive', () => console.error('[Pkaizen] renderer unresponsive'))
   win.webContents.on('will-navigate', (event) => event.preventDefault())
   win.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   win.webContents.session.setPermissionCheckHandler(() => false)
-  win.webContents.on('render-process-gone', (_e, details) =>
+  win.webContents.on('render-process-gone', (_e, details) => {
+    speedController?.abort()
+    diskController?.abort()
     logError('renderer gone', details.reason)
-  )
+  })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) shell.openExternal(url)
@@ -226,9 +231,18 @@ function registerIpc(): void {
   handle('net:ping', () => pingTest())
   handle('net:dns', () => dnsBench())
   handle('net:setDns', (_e, preset: string) => setDns(preset))
-  handle('net:speedtest', (e) =>
-    speedTest((phase, mbps, percent) => e.sender.send('net:speedProgress', { phase, mbps, percent }))
-  )
+  handle('net:speedtest', async (event) => {
+    if (speedController) throw new Error('Speed test already running')
+    speedController = new AbortController()
+    try {
+      return await speedTest((phase, mbps, percent) => {
+        if (!event.sender.isDestroyed()) event.sender.send('net:speedProgress', { phase, mbps, percent })
+      }, speedController.signal)
+    } finally {
+      speedController = null
+    }
+  })
+  handle('net:cancelSpeed', () => { speedController?.abort() })
   handle('browser:report', () => getBrowserReport())
   handle('browser:install', (_e, id: string) => installBrowser(id))
   handle('report:generate', () => generateReport())
@@ -268,9 +282,9 @@ async function setupAutoUpdate(): Promise<void> {
       if (res === 0) autoUpdater.quitAndInstall()
     })
     autoUpdater.on('error', (e) => console.error('[Pkaizen] autoUpdater:', e.message))
-    await autoUpdater.checkForUpdates()
     // L'app peut rester ouverte des heures : re-check toutes les 30 min.
     setInterval(() => autoUpdater.checkForUpdates().catch(() => undefined), 30 * 60_000)
+    await autoUpdater.checkForUpdates()
   } catch (e) {
     console.error('[Pkaizen] autoUpdate setup:', e)
   }

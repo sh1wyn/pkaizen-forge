@@ -29,7 +29,7 @@ export async function runSystemTask<Result>(task: () => Promise<Result>): Promis
   }
 }
 
-export async function ps(script: string, timeoutMs = 60000): Promise<string> {
+export async function ps(script: string, timeoutMs = 60000, strict = false): Promise<string> {
   return runSystemTask(async () => {
     const encoded = Buffer.from(PRELUDE + script, 'utf16le').toString('base64')
     return await new Promise((resolve, reject) => {
@@ -38,7 +38,7 @@ export async function ps(script: string, timeoutMs = 60000): Promise<string> {
         ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded],
         { maxBuffer: 32 * 1024 * 1024, windowsHide: true, timeout: timeoutMs, encoding: 'utf8' },
         (err, stdout, stderr) => {
-          if (err && !stdout) reject(new Error(stderr || err.message))
+          if (err && (strict || !stdout)) reject(new Error(stderr || err.message))
           else resolve(stdout.trim())
         }
       )

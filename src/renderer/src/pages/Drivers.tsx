@@ -31,20 +31,30 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
   const installNvidia = async (url: string): Promise<void> => {
     setNvBusy(true)
     setNvProgress(0)
-    const res = await window.api.installNvidiaDriver(url)
-    toast(res.message || '', res.ok ? 'success' : 'error')
-    setNvBusy(false)
+    try {
+      const res = await window.api.installNvidiaDriver(url)
+      toast(res.message || '', res.ok ? 'success' : 'error')
+    } catch (error) {
+      toast(String(error), 'error')
+    } finally {
+      setNvBusy(false)
+    }
   }
 
   const installDsa = async (): Promise<void> => {
     setDsaBusy(true)
-    const res = await window.api.installIntelDsa()
-    toast(res.message || '', res.ok ? 'success' : 'error')
-    setDsaBusy(false)
+    try {
+      const res = await window.api.installIntelDsa()
+      toast(res.message || '', res.ok ? 'success' : 'error')
+    } catch (error) {
+      toast(String(error), 'error')
+    } finally {
+      setDsaBusy(false)
+    }
   }
 
   useEffect(() => {
-    cached('drv:links', () => window.api.getVendorLinks()).then(setLinks)
+    cached('drv:links', () => window.api.getVendorLinks()).then(setLinks).catch((error) => toast(String(error), 'error'))
   }, [])
 
   const [scanBusy, setScanBusy] = useState(false)
@@ -90,25 +100,40 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
   const installWu = async (): Promise<void> => {
     if (wuSelected.size === 0) return
     setWuInstalling(true)
-    const res = await window.api.installDriverUpdates([...wuSelected])
-    toast(res.message || (res.ok ? `${res.installed} OK ✔` : 'KO'), res.ok ? 'success' : 'error')
-    if (res.rebootRequired) setRebootNeeded(true)
-    if (res.ok) await searchWu()
-    setWuInstalling(false)
+    try {
+      const res = await window.api.installDriverUpdates([...wuSelected])
+      toast(res.message || (res.ok ? `${res.installed} OK ✔` : 'KO'), res.ok ? 'success' : 'error')
+      if (res.rebootRequired) setRebootNeeded(true)
+      if (res.installed > 0) await searchWu()
+    } catch (error) {
+      toast(String(error), 'error')
+    } finally {
+      setWuInstalling(false)
+    }
   }
 
   const loadWinget = async (): Promise<void> => {
     setWinget(null)
-    const res = await window.api.getWingetUpgrades()
-    setWinget(res)
+    try {
+      const res = await window.api.getWingetUpgrades()
+      setWinget(res)
+    } catch (error) {
+      setWinget([])
+      toast(String(error), 'error')
+    }
   }
 
   const upgradeOne = async (id: string): Promise<void> => {
     setWingetBusy(id)
-    const res = await window.api.wingetUpgradePackage(id)
-    toast(res.message || '', res.ok ? 'success' : 'error')
-    if (res.ok) setWinget((w) => w?.filter((x) => x.id !== id) ?? null)
-    setWingetBusy(null)
+    try {
+      const res = await window.api.wingetUpgradePackage(id)
+      toast(res.message || '', res.ok ? 'success' : 'error')
+      if (res.ok) setWinget((w) => w?.filter((x) => x.id !== id) ?? null)
+    } catch (error) {
+      toast(String(error), 'error')
+    } finally {
+      setWingetBusy(null)
+    }
   }
 
   return (

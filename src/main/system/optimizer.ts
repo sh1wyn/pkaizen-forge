@@ -167,7 +167,7 @@ const TWEAKS: Tweak[] = [
       Set-ItemProperty $g -Name 'Scheduling Category' -Value 'Medium' -Type String`,
     check: `
       $v = (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile' -Name 'NetworkThrottlingIndex' -ErrorAction SilentlyContinue).NetworkThrottlingIndex
-      if ($v -eq 0xffffffff -or $v -eq -1) { '1' }`
+      if ($v -eq [uint32]::MaxValue -or $v -eq -1) { '1' }`
   },
   {
     id: 'prio-foreground',
@@ -387,19 +387,21 @@ export async function applyTweak(id: string): Promise<ActionResult> {
   const t = TWEAKS.find((x) => x.id === id)
   if (!t) return { ok: false, message: 'Tweak inconnu' }
   try {
-    await ps(t.apply, 30000)
-    const out = await ps(t.check, 15000)
-    if (!out.includes('1')) {
+    await ps(`$ErrorActionPreference='Stop'; $LASTEXITCODE=0; ${t.apply}
+      if ($LASTEXITCODE -ne 0) { throw "Windows command failed (exit $LASTEXITCODE)" }`, 30000, true)
+    const out = await ps(t.check, 15000, true)
+    if (out.trim() !== '1') {
       return {
         ok: false,
-        message: t.needsAdmin
-          ? T('Failed — relaunch Pkaizen Forge as administrator for this tweak.', 'Échec — relance Pkaizen Forge en administrateur pour ce tweak.')
-          : T('The tweak could not be verified.', 'Le tweak n\u2019a pas pu être vérifié.')
+        message: T(
+          'Windows did not retain the requested setting. Check device support and system policies; administrator rights alone may not be sufficient.',
+          'Windows n’a pas conservé le réglage demandé. Vérifie la compatibilité du matériel et les stratégies système ; les droits administrateur ne suffisent pas toujours.'
+        )
       }
     }
     return { ok: true, message: t.needsReboot ? T('Applied — restart required to take effect.', 'Appliqué — redémarrage requis pour prendre effet.') : T('Applied.', 'Appliqué.') }
   } catch (e) {
-    return { ok: false, message: (e as Error).message }
+    return { ok: false, message: `${T(t.nameEn, t.name)}: ${(e as Error).message}` }
   }
 }
 
@@ -407,7 +409,8 @@ export async function revertTweak(id: string): Promise<ActionResult> {
   const t = TWEAKS.find((x) => x.id === id)
   if (!t) return { ok: false, message: 'Tweak inconnu' }
   try {
-    await ps(t.revert, 30000)
+    await ps(`$ErrorActionPreference='Stop'; $LASTEXITCODE=0; ${t.revert}
+      if ($LASTEXITCODE -ne 0) { throw "Windows command failed (exit $LASTEXITCODE)" }`, 30000, true)
     return { ok: true, message: T('Windows default values restored.', 'Valeurs Windows par défaut restaurées.') }
   } catch (e) {
     return { ok: false, message: (e as Error).message }

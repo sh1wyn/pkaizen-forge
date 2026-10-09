@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { NetInfo, PingResult, DnsBench, SpeedResult } from '../../../shared/types'
 import { useI18n } from '../lib/i18n'
 import { useToast } from '../components/Toast'
@@ -22,29 +22,44 @@ export default function Network({ isAdmin }: { isAdmin: boolean }): React.JSX.El
   const [pings, setPings] = useState<PingResult[] | null>(null)
   const [dns, setDns] = useState<DnsBench[] | null>(null)
   const [testing, setTesting] = useState(false)
+  const cancelled = useRef(false)
+  const speedRunning = useRef(false)
   const toast = useToast()
 
   useEffect(() => {
-    window.api.getNetInfo().then(setInfo)
+    window.api.getNetInfo().then(setInfo).catch(() => toast(t('net.error'), 'error'))
     const off = window.api.onSpeedProgress((p) => {
       setLiveSpeed(p)
       if (p.phase === 'down') setLiveDown(p.mbps)
     })
-    return off
+    return () => {
+      off()
+      cancelled.current = true
+      if (speedRunning.current) void window.api.cancelSpeedTest().catch(() => undefined)
+    }
   }, [])
 
   const runSpeed = async (): Promise<void> => {
+    if (speedRunning.current || testing || dnsBusy) return
+    speedRunning.current = true
+    cancelled.current = false
     setSpeedBusy(true)
     setSpeed(null)
     setLiveSpeed(null)
     setLiveDown(null)
     try {
-      setSpeed(await window.api.speedTest())
+      const result = await window.api.speedTest()
+      if (!cancelled.current) {
+        setSpeed(result)
+        if (result.downMbps == null && result.upMbps == null) toast(t('net.error'), 'error')
+      }
     } catch {
-      toast(t('net.error'), 'error')
+      if (!cancelled.current) toast(t('net.error'), 'error')
+    } finally {
+      speedRunning.current = false
+      setSpeedBusy(false)
+      setLiveSpeed(null)
     }
-    setSpeedBusy(false)
-    setLiveSpeed(null)
   }
 
   const runTest = async (): Promise<void> => {
@@ -64,9 +79,14 @@ export default function Network({ isAdmin }: { isAdmin: boolean }): React.JSX.El
 
   const applyDns = async (preset: string): Promise<void> => {
     setDnsBusy(preset)
-    const res = await window.api.setDns(preset)
-    toast(res.message || '', res.ok ? 'success' : 'error')
-    setDnsBusy(null)
+    try {
+      const res = await window.api.setDns(preset)
+      toast(res.message || '', res.ok ? 'success' : 'error')
+    } catch (error) {
+      toast(String(error), 'error')
+    } finally {
+      setDnsBusy(null)
+    }
   }
 
   return (
@@ -95,9 +115,15 @@ export default function Network({ isAdmin }: { isAdmin: boolean }): React.JSX.El
 
       <div className="section-title">{t('net.speedSection')}</div>
       <div className="toolbar">
-        <button className="btn primary" disabled={speedBusy} onClick={runSpeed}>
+        <button className="btn primary" disabled={speedBusy || testing || dnsBusy != null} onClick={runSpeed}>
           {speedBusy ? <span className="spinner" /> : '🚀'} {t('net.speedRun')}
         </button>
+        {speedBusy && (
+          <button className="btn" onClick={() => {
+            cancelled.current = true
+            void window.api.cancelSpeedTest().catch((error) => toast(String(error), 'error'))
+          }}>{t('bench.cancel')}</button>
+        )}
         {speedBusy && liveSpeed && (
           <span className="muted">
             {liveSpeed.phase === 'down' ? '⬇' : '⬆'} {liveSpeed.mbps} Mbps… ({liveSpeed.percent}%)
@@ -139,7 +165,7 @@ export default function Network({ isAdmin }: { isAdmin: boolean }): React.JSX.El
       )}
 
       <div className="toolbar">
-        <button className="btn primary" disabled={testing} onClick={runTest}>
+        <button className="btn primary" disabled={testing || speedBusy || dnsBusy != null} onClick={runTest}>
           {testing ? <span className="spinner" /> : '📡'} {t('net.runTest')}
         </button>
       </div>
@@ -196,13 +222,13 @@ export default function Network({ isAdmin }: { isAdmin: boolean }): React.JSX.El
               <button
                 key={d.preset}
                 className="btn primary"
-                disabled={dnsBusy != null || !isAdmin}
+                disabled={dnsBusy != null || !isAdmin || speedBusy || testing}
                 onClick={() => applyDns(d.preset)}
               >
                 {dnsBusy === d.preset ? <span className="spinner" /> : '⚡'} {t('net.dnsSet', d.label)}
               </button>
             ))}
-            <button className="btn" disabled={dnsBusy != null || !isAdmin} onClick={() => applyDns('auto')}>
+            <button className="btn" disabled={dnsBusy != null || !isAdmin || speedBusy || testing} onClick={() => applyDns('auto')}>
               {dnsBusy === 'auto' ? <span className="spinner" /> : '↺'} {t('net.dnsAuto')}
             </button>
           </div>

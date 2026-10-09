@@ -51,6 +51,7 @@ const api = {
   dnsBench: () => ipcRenderer.invoke('net:dns'),
   setDns: (preset: string) => ipcRenderer.invoke('net:setDns', preset),
   speedTest: () => ipcRenderer.invoke('net:speedtest'),
+  cancelSpeedTest: () => ipcRenderer.invoke('net:cancelSpeed'),
   onSpeedProgress: (cb: (p: { phase: 'down' | 'up'; mbps: number; percent: number }) => void) => {
     const listener = (_e: unknown, p: { phase: 'down' | 'up'; mbps: number; percent: number }): void => cb(p)
     ipcRenderer.on('net:speedProgress', listener)

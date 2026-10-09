@@ -75,6 +75,7 @@ declare global {
       dnsBench: () => Promise<DnsBench[]>
       setDns: (preset: string) => Promise<ActionResult>
       speedTest: () => Promise<SpeedResult>
+      cancelSpeedTest: () => Promise<void>
       onSpeedProgress: (cb: (p: { phase: 'down' | 'up'; mbps: number; percent: number }) => void) => () => void
       getBrowserReport: () => Promise<BrowserReport>
       installBrowser: (id: string) => Promise<ActionResult>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { CleanTarget, CleanResult } from '../../../shared/types'
 import { useI18n } from '../lib/i18n'
 import { useToast } from '../components/Toast'
@@ -17,16 +17,12 @@ export default function Clean({ isAdmin }: { isAdmin: boolean }): React.JSX.Elem
     try {
       const t2 = await window.api.previewClean()
       setTargets(t2)
-      setSelected(new Set(t2.filter((x) => !x.needsAdmin || isAdmin).map((x) => x.id)))
+      setSelected(new Set())
     } catch {
       toast(t('clean.errorAnalyze'), 'error')
     }
     setAnalyzing(false)
   }
-
-  useEffect(() => {
-    // Pas d'analyse auto : l'utilisateur lance avec le bouton (évite la charge à l'ouverture).
-  }, [])
 
   const toggleSel = (id: string): void => {
     setSelected((s) => {
@@ -45,7 +41,7 @@ export default function Clean({ isAdmin }: { isAdmin: boolean }): React.JSX.Elem
       const res = await window.api.runClean([...selected])
       setLastResult(res)
       const freed = res.reduce((a, r) => a + r.freedMB, 0)
-      toast(t('clean.freed', freed >= 1024 ? (freed / 1024).toFixed(1) + ' GB' : Math.round(freed) + ' MB'), 'success')
+      toast(t('clean.freed', freed >= 1024 ? (freed / 1024).toFixed(1) + ' GB' : Math.round(freed) + ' MB'), res.some((result) => !result.ok) ? 'error' : 'success')
       await analyze()
     } catch {
       toast(t('clean.error'), 'error')
@@ -73,7 +69,7 @@ export default function Clean({ isAdmin }: { isAdmin: boolean }): React.JSX.Elem
         </button>
       </div>
 
-      {targets === null && (
+      {targets === null && analyzing && (
         <div className="card">
           <span className="spinner" /> <span className="muted">{t('clean.computing')}</span>
         </div>
@@ -98,6 +94,7 @@ export default function Clean({ isAdmin }: { isAdmin: boolean }): React.JSX.Elem
                 {res?.ok && <span className="badge okay">−{res.freedMB >= 1024 ? (res.freedMB / 1024).toFixed(1) + ' GB' : Math.round(res.freedMB) + ' MB'}</span>}
               </div>
               <div className="row-desc">{x.description}</div>
+              {res && !res.ok && <div role="alert" className="row-desc" style={{ color: 'var(--red)' }}>{res.message || t('clean.error')}</div>}
             </div>
             <div className="big" style={{ whiteSpace: 'nowrap' }}>
               {x.sizeMB == null
