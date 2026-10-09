@@ -80,20 +80,58 @@ export async function getSystemReport(): Promise<SystemReport> {
 }
 
 export async function getLiveStats(): Promise<LiveStats> {
-  const [load, mem, temp, graphics] = await Promise.all([
-    si.currentLoad(),
-    si.mem(),
-    si.cpuTemperature(),
-    si.graphics()
-  ])
-  const gpu = graphics.controllers.find((g) => g.utilizationGpu != null || g.temperatureGpu != null)
+  // Léger : pas de WMI graphics à chaque poll — nvidia-smi direct si dispo, sinon rien.
+  const [load, mem] = await Promise.all([si.currentLoad(), si.mem()])
+  const gpu = await getGpuLive()
+  const cpuTemp = await getCpuTempThrottled()
   return {
     cpuLoad: Math.round(load.currentLoad),
     memUsedGB: toGB(mem.active),
     memTotalGB: toGB(mem.total),
     memPercent: Math.round((mem.active / mem.total) * 100),
-    cpuTemp: temp.main && temp.main > 0 ? Math.round(temp.main) : null,
-    gpuLoad: gpu?.utilizationGpu != null ? Math.round(gpu.utilizationGpu) : null,
-    gpuTemp: gpu?.temperatureGpu != null ? Math.round(gpu.temperatureGpu) : null
+    cpuTemp,
+    gpuLoad: gpu.load,
+    gpuTemp: gpu.temp
   }
+}
+
+let hasNvidiaSmi: boolean | null = null
+
+async function getGpuLive(): Promise<{ load: number | null; temp: number | null }> {
+  if (hasNvidiaSmi === false) return { load: null, temp: null }
+  try {
+    const { execFile } = await import('child_process')
+    const out = await new Promise<string>((resolve, reject) => {
+      execFile(
+        'nvidia-smi',
+        ['--query-gpu=utilization.gpu,temperature.gpu', '--format=csv,noheader,nounits'],
+        { timeout: 4000, windowsHide: true },
+        (err, stdout) => (err ? reject(err) : resolve(stdout))
+      )
+    })
+    hasNvidiaSmi = true
+    const [load, temp] = out.trim().split(',').map((s) => parseInt(s.trim(), 10))
+    return { load: Number.isNaN(load) ? null : load, temp: Number.isNaN(temp) ? null : temp }
+  } catch {
+    hasNvidiaSmi = false
+    return { load: null, temp: null }
+  }
+}
+
+// La température CPU passe par WMI (coûteux) : au max 1 lecture sur 4, cache entre-temps.
+let tempCounter = 0
+let lastTemp: number | null = null
+let tempSupported = true
+
+async function getCpuTempThrottled(): Promise<number | null> {
+  if (!tempSupported) return null
+  if (tempCounter++ % 4 !== 0) return lastTemp
+  try {
+    const t = await si.cpuTemperature()
+    lastTemp = t.main && t.main > 0 ? Math.round(t.main) : null
+    if (lastTemp === null && tempCounter > 4) tempSupported = false
+  } catch {
+    tempSupported = false
+  }
+  return lastTemp
 }

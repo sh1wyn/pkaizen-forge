@@ -1,6 +1,6 @@
 import si from 'systeminformation'
 import { ps } from './powershell'
-import { scanDrivers } from './drivers'
+import { scanDrivers, getGpuDriverStatus, getProblemDevices } from './drivers'
 import type { Insight } from '../../shared/types'
 
 /** Analyse orientée gamer : bottlenecks et points à corriger, du plus grave au moins grave. */
@@ -173,6 +173,33 @@ export async function getInsights(): Promise<Insight[]> {
   }
 
   // --- Pilote GPU ---
+  try {
+    const problems = await getProblemDevices()
+    for (const p of problems.slice(0, 6)) {
+      add({
+        severity: p.missingDriver ? 'critical' : 'warn',
+        title: p.missingDriver ? `Pilote manquant : ${p.name}` : `Périphérique en erreur : ${p.name}`,
+        detail: `${p.problem} (code ${p.code}). Va dans l’onglet Pilotes → « Rechercher les pilotes manquants » ou utilise le lien officiel de ton constructeur.`
+      })
+    }
+  } catch {
+    // scan optionnel
+  }
+  try {
+    const gpuStatuses = await getGpuDriverStatus()
+    for (const s of gpuStatuses) {
+      if (s.upToDate === false) {
+        add({
+          severity: 'warn',
+          title: `Pilote GPU pas à jour : ${s.installed} → ${s.latest} dispo`,
+          detail: `${s.model} : ${s.note}`,
+          action: { label: 'Télécharger (officiel)', url: s.downloadUrl }
+        })
+      }
+    }
+  } catch {
+    // check en ligne optionnel
+  }
   try {
     const drivers = await scanDrivers()
     const gpuDriver = drivers.find((d) => d.className === 'DISPLAY' && d.ageYears != null)

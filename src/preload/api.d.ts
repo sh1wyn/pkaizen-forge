@@ -12,7 +12,9 @@ import type {
   StartupItem,
   WuDriverUpdate,
   WuInstallResult,
-  Insight
+  Insight,
+  GpuDriverStatus,
+  ProblemDevice
 } from '../shared/types'
 
 declare global {
@@ -36,6 +38,8 @@ declare global {
       scanDrivers: () => Promise<DriverEntry[]>
       getWingetUpgrades: () => Promise<WingetUpgrade[]>
       getVendorLinks: () => Promise<VendorLink[]>
+      getGpuDriverStatus: () => Promise<GpuDriverStatus[]>
+      getProblemDevices: () => Promise<ProblemDevice[]>
       searchDriverUpdates: () => Promise<WuDriverUpdate[]>
       installDriverUpdates: (ids: string[]) => Promise<WuInstallResult>
       wingetUpgradePackage: (id: string) => Promise<ActionResult>

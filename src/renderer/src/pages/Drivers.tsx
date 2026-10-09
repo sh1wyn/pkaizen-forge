@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
-import type { DriverEntry, WingetUpgrade, VendorLink, WuDriverUpdate } from '../../../shared/types'
+import type { DriverEntry, WingetUpgrade, VendorLink, WuDriverUpdate, GpuDriverStatus, ProblemDevice } from '../../../shared/types'
+import { cached } from '../lib/cache'
 import { useToast } from '../components/Toast'
 
 export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.Element {
   const [links, setLinks] = useState<VendorLink[]>([])
   const [installed, setInstalled] = useState<DriverEntry[] | null>(null)
+  const [gpuStatus, setGpuStatus] = useState<GpuDriverStatus[] | null>(null)
+  const [problems, setProblems] = useState<ProblemDevice[] | null>(null)
   const [wu, setWu] = useState<WuDriverUpdate[] | null>(null)
   const [wuSearching, setWuSearching] = useState(false)
   const [wuSelected, setWuSelected] = useState<Set<string>>(new Set())
@@ -15,8 +18,10 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
   const toast = useToast()
 
   useEffect(() => {
-    window.api.getVendorLinks().then(setLinks)
-    window.api.scanDrivers().then(setInstalled)
+    cached('drv:links', () => window.api.getVendorLinks()).then(setLinks)
+    cached('drv:installed', () => window.api.scanDrivers()).then(setInstalled)
+    cached('drv:gpu', () => window.api.getGpuDriverStatus(), 10 * 60_000).then(setGpuStatus).catch(() => setGpuStatus([]))
+    cached('drv:problems', () => window.api.getProblemDevices()).then(setProblems).catch(() => setProblems([]))
   }, [])
 
   const searchWu = async (): Promise<void> => {
@@ -71,6 +76,55 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
             Redémarrer maintenant
           </button>
         </div>
+      )}
+
+      <div className="section-title">🎮 Carte graphique — vérification officielle</div>
+      {gpuStatus === null && (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <span className="spinner" /> <span className="muted">Vérification auprès du constructeur…</span>
+        </div>
+      )}
+      {gpuStatus?.map((g) => (
+        <div
+          className="row stagger"
+          key={g.model}
+          style={{ borderLeft: `3px solid ${g.upToDate === false ? 'var(--orange)' : g.upToDate ? 'var(--green)' : 'var(--border)'}` }}
+        >
+          <div className="row-info">
+            <div className="row-title">
+              {g.model}
+              {g.upToDate === false && <span className="badge old">MAJ dispo : {g.latest}</span>}
+              {g.upToDate === true && <span className="badge okay">À jour ({g.installed})</span>}
+            </div>
+            <div className="row-desc">{g.note}</div>
+          </div>
+          <button className="btn" onClick={() => window.api.openExternal(g.downloadUrl)}>
+            {g.upToDate === false ? '⬇ Télécharger' : 'Vérifier ↗'}
+          </button>
+        </div>
+      ))}
+
+      {problems && problems.length > 0 && (
+        <>
+          <div className="section-title">⚠ Périphériques avec problème de pilote</div>
+          {problems.map((p) => (
+            <div className="row stagger" key={p.deviceId} style={{ borderLeft: '3px solid var(--red)' }}>
+              <div className="row-info">
+                <div className="row-title">
+                  {p.name}
+                  {p.missingDriver && <span className="badge old">Pilote manquant</span>}
+                </div>
+                <div className="row-desc">
+                  {p.problem} (code {p.code}) — lance une recherche Windows Update ci-dessous ou va sur le site de ton
+                  constructeur.
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+      {problems && problems.length === 0 && (
+        <div className="banner ok">✅ Aucun périphérique en erreur — tous tes composants ont un pilote fonctionnel.</div>
       )}
 
       <div className="section-title">🔄 Mise à jour automatique (Windows Update)</div>

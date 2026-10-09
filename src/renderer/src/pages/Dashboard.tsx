@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { SystemReport, LiveStats, Insight } from '../../../shared/types'
+import { cached } from '../lib/cache'
 import { useToast } from '../components/Toast'
 
 const SEV_STYLE: Record<Insight['severity'], { icon: string; color: string; label: string }> = {
@@ -16,10 +17,11 @@ export default function Dashboard(): React.JSX.Element {
   const toast = useToast()
 
   useEffect(() => {
-    window.api.getSystemReport().then(setReport).catch(() => toast('Erreur lecture matériel', 'error'))
-    window.api.getInsights().then(setInsights).catch(() => setInsights([]))
+    cached('report', () => window.api.getSystemReport()).then(setReport).catch(() => toast('Erreur lecture matériel', 'error'))
+    cached('insights', () => window.api.getInsights()).then(setInsights).catch(() => setInsights([]))
     let stop = false
     const poll = async (): Promise<void> => {
+      if (document.hidden) return // zéro conso quand la fenêtre est minimisée/cachée
       try {
         const s = await window.api.getLiveStats()
         if (!stop) setLive(s)

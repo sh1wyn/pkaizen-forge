@@ -130,6 +130,25 @@ export interface WuInstallResult {
   message?: string
 }
 
+export interface GpuDriverStatus {
+  vendor: 'nvidia' | 'amd' | 'intel' | 'unknown'
+  model: string
+  installed: string | null
+  latest: string | null
+  upToDate: boolean | null
+  downloadUrl: string
+  note: string
+}
+
+export interface ProblemDevice {
+  name: string
+  deviceId: string
+  code: number
+  className: string
+  problem: string
+  missingDriver: boolean
+}
+
 export interface StartupItem {
   name: string
   command: string
