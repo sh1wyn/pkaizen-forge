@@ -1,5 +1,6 @@
 import si from 'systeminformation'
 import { psJson, asArray } from './powershell'
+import { T } from './i18n'
 import type { DetailedInfo } from '../../shared/types'
 
 interface RawDetails {
@@ -11,9 +12,15 @@ interface RawDetails {
   disks: { model: string; health: string; tempC: number; hours: number; wear: number }[] | null
 }
 
+// La requête WMI (BIOS/TPM/RAM/SMART) est lourde : cache 5 min.
+let rawCache: { at: number; data: RawDetails | null } | null = null
+
 export async function getDetailedInfo(): Promise<DetailedInfo> {
+  const cachedRaw = rawCache && Date.now() - rawCache.at < 5 * 60_000 ? rawCache.data : undefined
   const [raw, graphics, osInfo, time] = await Promise.all([
-    psJson<RawDetails>(
+    cachedRaw !== undefined
+      ? Promise.resolve(cachedRaw)
+      : psJson<RawDetails>(
       `
       $bios = Get-CimInstance Win32_BIOS
       $sb = (Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecureBoot\\State' -Name UEFISecureBootEnabled -ErrorAction SilentlyContinue).UEFISecureBootEnabled
@@ -72,6 +79,7 @@ export async function getDetailedInfo(): Promise<DetailedInfo> {
     si.osInfo(),
     Promise.resolve(si.time())
   ])
+  if (cachedRaw === undefined) rawCache = { at: Date.now(), data: raw }
 
   const uptimeH = Math.round((time.uptime / 3600) * 10) / 10
 
@@ -114,7 +122,7 @@ export async function getDetailedInfo(): Promise<DetailedInfo> {
     })),
     diskHealth: asArray(raw?.disks ?? null).map((d) => ({
       model: d.model,
-      health: d.health === 'Healthy' ? 'Bon état' : d.health,
+      health: d.health === 'Healthy' ? T('Good', 'Bon état') : d.health,
       tempC: d.tempC >= 0 ? d.tempC : null,
       powerOnHours: d.hours >= 0 ? d.hours : null,
       wearPercent: d.wear >= 0 ? d.wear : null

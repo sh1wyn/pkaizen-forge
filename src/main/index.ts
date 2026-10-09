@@ -1,7 +1,8 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
 import { join } from 'path'
+import { readFileSync, existsSync } from 'fs'
 import { ps } from './system/powershell'
-import { setLang, type Lang } from './system/i18n'
+import { setLang, T, type Lang } from './system/i18n'
 import { getSystemReport, getLiveStats } from './system/sysinfo'
 import { getInsights } from './system/analyzer'
 import { getDetailedInfo } from './system/details'
@@ -192,6 +193,39 @@ function registerIpc(): void {
   })
 }
 
+// Auto-update via les releases GitHub (repo privé : token optionnel dans userData/update-token.txt).
+async function setupAutoUpdate(): Promise<void> {
+  if (!app.isPackaged) return
+  try {
+    const tokenFile = join(app.getPath('userData'), 'update-token.txt')
+    if (existsSync(tokenFile)) {
+      const token = readFileSync(tokenFile, 'utf8').trim()
+      if (token) process.env.GH_TOKEN = token
+    }
+    const { autoUpdater } = await import('electron-updater')
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
+    autoUpdater.on('update-downloaded', (info) => {
+      const res = dialog.showMessageBoxSync({
+        type: 'info',
+        title: 'Pkaizen Forge',
+        message: T(`Update ${info.version} ready`, `Mise à jour ${info.version} prête`),
+        detail: T(
+          'The new version has been downloaded. Restart now to apply it?',
+          'La nouvelle version a été téléchargée. Redémarrer maintenant pour l\u2019appliquer ?'
+        ),
+        buttons: [T('Restart now', 'Redémarrer maintenant'), T('Later', 'Plus tard')],
+        defaultId: 0
+      })
+      if (res === 0) autoUpdater.quitAndInstall()
+    })
+    autoUpdater.on('error', (e) => console.error('[Pkaizen] autoUpdater:', e.message))
+    await autoUpdater.checkForUpdates()
+  } catch (e) {
+    console.error('[Pkaizen] autoUpdate setup:', e)
+  }
+}
+
 // Une seule instance : relancer l'app ramène la fenêtre existante.
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
@@ -207,6 +241,13 @@ if (!gotLock) {
   app.whenReady().then(() => {
     registerIpc()
     createWindow()
+    setupAutoUpdate()
+    // Préchauffe les scans lourds en fond (priorité basse) : les onglets seront instantanés.
+    setTimeout(() => {
+      scanDrivers().catch(() => undefined)
+      getDetailedInfo().catch(() => undefined)
+      getProblemDevices().catch(() => undefined)
+    }, 4000)
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })

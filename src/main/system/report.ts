@@ -19,14 +19,13 @@ const SEV = {
 
 export async function generateReport(): Promise<ActionResult & { path?: string }> {
   try {
-    const [report, insights, checklist, problems, tweaks, states] = await Promise.all([
-      getSystemReport(),
-      getInsights(),
-      getComponentChecklist().catch(() => []),
-      getProblemDevices().catch(() => []),
-      Promise.resolve(listTweaks()),
-      getTweakStates()
-    ])
+    // Séquentiel strict : un rapport lançait tout en parallèle et figeait les petits PC.
+    const report = await getSystemReport()
+    const insights = await getInsights()
+    const checklist = await getComponentChecklist().catch(() => [])
+    const problems = await getProblemDevices().catch(() => [])
+    const tweaks = listTweaks()
+    const states = await getTweakStates()
     const stateMap = new Map(states.map((s) => [s.id, s.applied]))
     const applied = tweaks.filter((t) => stateMap.get(t.id)).length
 

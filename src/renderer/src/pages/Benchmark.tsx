@@ -37,8 +37,18 @@ function runCpuWorkers(count: number): Promise<number> {
   return Promise.all(
     workers.map(
       (w) =>
-        new Promise<number>((resolve) => {
+        new Promise<number>((resolve, reject) => {
+          const guard = setTimeout(() => {
+            w.terminate()
+            reject(new Error('worker timeout'))
+          }, 15000)
+          w.onerror = (e) => {
+            clearTimeout(guard)
+            w.terminate()
+            reject(new Error(e.message || 'worker error'))
+          }
           w.onmessage = (e) => {
+            clearTimeout(guard)
             resolve(e.data as number)
             w.terminate()
           }

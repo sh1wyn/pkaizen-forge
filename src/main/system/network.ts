@@ -150,8 +150,8 @@ export async function speedTest(
 
   try {
     const ctrl = new AbortController()
-    const started = performance.now()
     let received = 0
+    let started = 0 // démarre au 1er chunk : exclut la latence de connexion de la mesure
     const res = await fetch(`https://speed.cloudflare.com/__down?bytes=${DOWN_BYTES}`, { signal: ctrl.signal })
     if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
     const reader = (res.body as ReadableStream<Uint8Array>).getReader()
@@ -159,10 +159,13 @@ export async function speedTest(
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
+        if (started === 0) started = performance.now()
         received += value?.length ?? 0
         const elapsed = performance.now() - started
-        const mbps = (received * 8) / (elapsed / 1000) / 1e6
-        onProgress('down', Math.round(mbps * 10) / 10, Math.min(100, Math.round((elapsed / DOWN_MAX_MS) * 100)))
+        if (elapsed > 300) {
+          const mbps = (received * 8) / (elapsed / 1000) / 1e6
+          onProgress('down', Math.round(mbps * 10) / 10, Math.min(100, Math.round((elapsed / DOWN_MAX_MS) * 100)))
+        }
         if (elapsed > DOWN_MAX_MS) {
           ctrl.abort()
           break
@@ -171,8 +174,8 @@ export async function speedTest(
     } catch (e) {
       if ((e as Error).name !== 'AbortError') throw e
     }
-    const downMs = Math.min(performance.now() - started, DOWN_MAX_MS)
-    if (received > 0) downMbps = Math.round(((received * 8) / (downMs / 1000) / 1e6) * 10) / 10
+    const downMs = started > 0 ? Math.min(performance.now() - started, DOWN_MAX_MS) : 0
+    if (received > 0 && downMs > 0) downMbps = Math.round(((received * 8) / (downMs / 1000) / 1e6) * 10) / 10
   } catch {
     downMbps = null
   }

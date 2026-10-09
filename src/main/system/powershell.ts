@@ -1,6 +1,6 @@
 import { execFile } from 'child_process'
 
-const PRELUDE = `$ErrorActionPreference='SilentlyContinue';[Console]::OutputEncoding=[Text.Encoding]::UTF8;`
+const PRELUDE = `(Get-Process -Id $PID).PriorityClass='BelowNormal';$ErrorActionPreference='SilentlyContinue';[Console]::OutputEncoding=[Text.Encoding]::UTF8;`
 
 // Max 2 PowerShell simultanés : évite de saturer les petits CPU (freeze du PC).
 const MAX_CONCURRENT = 2

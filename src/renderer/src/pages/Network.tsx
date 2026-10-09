@@ -18,6 +18,7 @@ export default function Network({ isAdmin }: { isAdmin: boolean }): React.JSX.El
   const [speed, setSpeed] = useState<SpeedResult | null>(null)
   const [speedBusy, setSpeedBusy] = useState(false)
   const [liveSpeed, setLiveSpeed] = useState<{ phase: 'down' | 'up'; mbps: number; percent: number } | null>(null)
+  const [liveDown, setLiveDown] = useState<number | null>(null)
   const [pings, setPings] = useState<PingResult[] | null>(null)
   const [dns, setDns] = useState<DnsBench[] | null>(null)
   const [testing, setTesting] = useState(false)
@@ -25,7 +26,10 @@ export default function Network({ isAdmin }: { isAdmin: boolean }): React.JSX.El
 
   useEffect(() => {
     window.api.getNetInfo().then(setInfo)
-    const off = window.api.onSpeedProgress(setLiveSpeed)
+    const off = window.api.onSpeedProgress((p) => {
+      setLiveSpeed(p)
+      if (p.phase === 'down') setLiveDown(p.mbps)
+    })
     return off
   }, [])
 
@@ -33,6 +37,7 @@ export default function Network({ isAdmin }: { isAdmin: boolean }): React.JSX.El
     setSpeedBusy(true)
     setSpeed(null)
     setLiveSpeed(null)
+    setLiveDown(null)
     try {
       setSpeed(await window.api.speedTest())
     } catch {
@@ -104,7 +109,7 @@ export default function Network({ isAdmin }: { isAdmin: boolean }): React.JSX.El
           <div className="card stagger">
             <h3>⬇ {t('net.down')}</h3>
             <div className="score-num" style={{ fontSize: 42 }}>
-              {speed?.downMbps ?? (liveSpeed?.phase === 'down' ? liveSpeed.mbps : '…')}
+              {speed?.downMbps ?? liveDown ?? '…'}
             </div>
             <div className="sub">Mbps</div>
           </div>
