@@ -1,4 +1,5 @@
 import { ps, psJson, asArray } from './powershell'
+import { T } from './i18n'
 import type { ActionResult, WuDriverUpdate, WuInstallResult } from '../../shared/types'
 
 /**
@@ -135,10 +136,13 @@ export async function downloadAndRunNvidiaInstaller(
     await pipeline(reader, createWriteStream(dest))
 
     const err = await shell.openPath(dest)
-    if (err) return { ok: false, message: `Impossible de lancer l'installeur : ${err}` }
+    if (err) return { ok: false, message: T(`Could not launch the installer: ${err}`, `Impossible de lancer l'installeur : ${err}`) }
     return {
       ok: true,
-      message: 'Installeur NVIDIA officiel lancé — suis les étapes (Installation express recommandée).'
+      message: T(
+        'Official NVIDIA installer launched — follow the steps (Express installation recommended).',
+        'Installeur NVIDIA officiel lancé — suis les étapes (Installation express recommandée).'
+      )
     }
   } catch (e) {
     return { ok: false, message: (e as Error).message }
@@ -156,7 +160,10 @@ export async function installIntelDsa(): Promise<ActionResult> {
     return {
       ok,
       message: ok
-        ? 'Intel DSA installé — ouvre-le, il détecte et installe tous les pilotes Intel officiels.'
+        ? T(
+            'Intel DSA installed — open it, it detects and installs all official Intel drivers.',
+            'Intel DSA installé — ouvre-le, il détecte et installe tous les pilotes Intel officiels.'
+          )
         : out.split(/\r?\n/).slice(-3).join(' ')
     }
   } catch (e) {

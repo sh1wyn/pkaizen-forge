@@ -1,6 +1,7 @@
 import si from 'systeminformation'
 import { release } from 'os'
 import { ps, psJson, asArray } from './powershell'
+import { T } from './i18n'
 import type { DriverEntry, WingetUpgrade, VendorLink, GpuDriverStatus, ProblemDevice, ComponentCheck } from '../../shared/types'
 
 interface RawDriver {
@@ -105,11 +106,11 @@ export async function getVendorLinks(): Promise<VendorLink[]> {
   for (const g of graphics.controllers) {
     const m = `${g.vendor} ${g.model}`.toLowerCase()
     if (m.includes('nvidia') || m.includes('geforce') || m.includes('rtx') || m.includes('gtx')) {
-      add('NVIDIA — GeForce drivers officiels', 'https://www.nvidia.com/fr-fr/drivers/', 'GPU NVIDIA détecté — le pilote GPU est LE plus important pour les FPS.')
+      add('NVIDIA — GeForce drivers', 'https://www.nvidia.com/fr-fr/drivers/', T('NVIDIA GPU detected — the GPU driver is THE most important one for FPS.', 'GPU NVIDIA détecté — le pilote GPU est LE plus important pour les FPS.'))
     } else if (m.includes('amd') || m.includes('radeon')) {
-      add('AMD — Adrenalin drivers officiels', 'https://www.amd.com/fr/support/download/drivers.html', 'GPU AMD détecté — mets à jour Adrenalin pour les derniers gains de perf.')
+      add('AMD — Adrenalin drivers', 'https://www.amd.com/fr/support/download/drivers.html', T('AMD GPU detected — update Adrenalin for the latest perf gains.', 'GPU AMD détecté — mets à jour Adrenalin pour les derniers gains de perf.'))
     } else if (m.includes('intel') && (m.includes('arc') || m.includes('graphics') || m.includes('iris') || m.includes('uhd') || m.includes('hd'))) {
-      add('Intel — Driver & Support Assistant', 'https://www.intel.fr/content/www/fr/fr/support/detect.html', 'GPU/iGPU Intel détecté — l\u2019assistant Intel détecte et installe tout automatiquement.')
+      add('Intel — Driver & Support Assistant', 'https://www.intel.fr/content/www/fr/fr/support/detect.html', T('Intel GPU/iGPU detected — the Intel assistant detects and installs everything automatically.', 'GPU/iGPU Intel détecté — l\u2019assistant Intel détecte et installe tout automatiquement.'))
     }
   }
 
@@ -121,8 +122,11 @@ export async function getVendorLinks(): Promise<VendorLink[]> {
         site.label,
         site.url,
         isLaptop
-          ? `PC portable ${system.manufacturer} détecté — sur un laptop, prends TOUJOURS les pilotes (chipset, audio, touchpad) sur le site du constructeur.`
-          : `PC ${system.manufacturer} détecté — pilotes officiels du constructeur.`
+          ? T(
+              `${system.manufacturer} laptop detected — on a laptop, ALWAYS get drivers (chipset, audio, touchpad) from the manufacturer's site.`,
+              `PC portable ${system.manufacturer} détecté — sur un laptop, prends TOUJOURS les pilotes (chipset, audio, touchpad) sur le site du constructeur.`
+            )
+          : T(`${system.manufacturer} PC detected — official manufacturer drivers.`, `PC ${system.manufacturer} détecté — pilotes officiels du constructeur.`)
       )
       break
     }
@@ -132,22 +136,25 @@ export async function getVendorLinks(): Promise<VendorLink[]> {
     const mobo = (baseboard.manufacturer || '').toLowerCase()
     for (const [key, site] of Object.entries(VENDOR_SITES)) {
       if (mobo.includes(key)) {
-        add(site.label, site.url, `Carte mère ${baseboard.manufacturer} ${baseboard.model} — chipset, audio et LAN à jour depuis le site officiel.`)
+        add(site.label, site.url, T(`Motherboard ${baseboard.manufacturer} ${baseboard.model} — chipset, audio and LAN kept up to date from the official site.`, `Carte mère ${baseboard.manufacturer} ${baseboard.model} — chipset, audio et LAN à jour depuis le site officiel.`))
         break
       }
     }
     const cpuVendor = (await si.cpu()).manufacturer.toLowerCase()
     if (cpuVendor.includes('amd')) {
-      add('AMD — Chipset drivers', 'https://www.amd.com/fr/support/download/drivers.html', 'CPU AMD — le pilote chipset officiel améliore la gestion des cœurs (important pour les X3D).')
+      add('AMD — Chipset drivers', 'https://www.amd.com/fr/support/download/drivers.html', T('AMD CPU — the official chipset driver improves core scheduling (important for X3D chips).', 'CPU AMD — le pilote chipset officiel améliore la gestion des cœurs (important pour les X3D).'))
     } else if (cpuVendor.includes('intel')) {
-      add('Intel — Driver & Support Assistant', 'https://www.intel.fr/content/www/fr/fr/support/detect.html', 'CPU Intel — l\u2019assistant officiel gère chipset, ME et réseau.')
+      add('Intel — Driver & Support Assistant', 'https://www.intel.fr/content/www/fr/fr/support/detect.html', T('Intel CPU — the official assistant handles chipset, ME and network.', 'CPU Intel — l\u2019assistant officiel gère chipset, ME et réseau.'))
     }
   }
 
   add(
-    'Windows Update — pilotes facultatifs',
+    T('Windows Update — optional drivers', 'Windows Update — pilotes facultatifs'),
     'ms-settings:windowsupdate-optionalupdates',
-    'Vérifie aussi les "Mises à jour facultatives" de Windows : pilotes signés et sûrs, directement par Microsoft.'
+    T(
+      'Also check Windows\u2019 "Optional updates": signed, safe drivers straight from Microsoft.',
+      'Vérifie aussi les "Mises à jour facultatives" de Windows : pilotes signés et sûrs, directement par Microsoft.'
+    )
   )
 
   return links
@@ -258,10 +265,16 @@ export async function getGpuDriverStatus(): Promise<GpuDriverStatus[]> {
         downloadUrl: latest?.url ?? 'https://www.nvidia.com/fr-fr/drivers/',
         note:
           upToDate === false
-            ? `Nouveau Game Ready Driver ${latest!.version} disponible (tu as ${installed}). Télécharge-le depuis le lien officiel NVIDIA.`
+            ? T(
+                `New Game Ready Driver ${latest!.version} available (you have ${installed}). Download it from the official NVIDIA link.`,
+                `Nouveau Game Ready Driver ${latest!.version} disponible (tu as ${installed}). Télécharge-le depuis le lien officiel NVIDIA.`
+              )
             : upToDate === true
-              ? 'Ton pilote NVIDIA est à jour ✔'
-              : 'Impossible de vérifier automatiquement — clique pour vérifier sur nvidia.com.'
+              ? T('Your NVIDIA driver is up to date ✔', 'Ton pilote NVIDIA est à jour ✔')
+              : T(
+                  'Automatic check unavailable — click to verify on nvidia.com.',
+                  'Impossible de vérifier automatiquement — clique pour vérifier sur nvidia.com.'
+                )
       })
     } else if (m.includes('amd') || m.includes('radeon')) {
       statuses.push({
@@ -271,7 +284,10 @@ export async function getGpuDriverStatus(): Promise<GpuDriverStatus[]> {
         latest: null,
         upToDate: null,
         downloadUrl: 'https://www.amd.com/fr/support/download/drivers.html',
-        note: 'AMD ne fournit pas d\u2019API publique de version — clique pour vérifier via l\u2019outil officiel de détection automatique AMD.'
+        note: T(
+          'AMD provides no public version API — click to check via the official AMD auto-detect tool.',
+          'AMD ne fournit pas d\u2019API publique de version — clique pour vérifier via l\u2019outil officiel de détection automatique AMD.'
+        )
       })
     } else if (m.includes('intel')) {
       statuses.push({
@@ -281,7 +297,10 @@ export async function getGpuDriverStatus(): Promise<GpuDriverStatus[]> {
         latest: null,
         upToDate: null,
         downloadUrl: 'https://www.intel.fr/content/www/fr/fr/support/detect.html',
-        note: 'Utilise l\u2019assistant officiel Intel DSA : il détecte et installe le dernier pilote automatiquement.'
+        note: T(
+          'Use the official Intel DSA assistant: it detects and installs the latest driver automatically.',
+          'Utilise l\u2019assistant officiel Intel DSA : il détecte et installe le dernier pilote automatiquement.'
+        )
       })
     }
   }
@@ -292,17 +311,17 @@ export async function getGpuDriverStatus(): Promise<GpuDriverStatus[]> {
 /*  Périphériques en erreur / sans pilote (codes PnP Windows)   */
 /* ----------------------------------------------------------- */
 
-const PNP_ERRORS: Record<number, string> = {
-  1: 'Périphérique mal configuré',
-  3: 'Pilote corrompu ou mémoire insuffisante',
-  10: 'Le périphérique ne peut pas démarrer',
-  18: 'Pilote à réinstaller',
-  28: 'AUCUN PILOTE INSTALLÉ',
-  31: 'Le pilote ne fonctionne pas correctement',
-  37: 'Le pilote a échoué au chargement',
-  39: 'Pilote manquant ou corrompu',
-  43: 'Périphérique arrêté (erreur signalée)',
-  52: 'Signature du pilote invalide'
+const PNP_ERRORS: Record<number, [string, string]> = {
+  1: ['Device is misconfigured', 'Périphérique mal configuré'],
+  3: ['Driver corrupted or out of memory', 'Pilote corrompu ou mémoire insuffisante'],
+  10: ['Device cannot start', 'Le périphérique ne peut pas démarrer'],
+  18: ['Driver needs reinstalling', 'Pilote à réinstaller'],
+  28: ['NO DRIVER INSTALLED', 'AUCUN PILOTE INSTALLÉ'],
+  31: ['Driver is not working properly', 'Le pilote ne fonctionne pas correctement'],
+  37: ['Driver failed to load', 'Le pilote a échoué au chargement'],
+  39: ['Driver missing or corrupted', 'Pilote manquant ou corrompu'],
+  43: ['Device stopped (reported an error)', 'Périphérique arrêté (erreur signalée)'],
+  52: ['Invalid driver signature', 'Signature du pilote invalide']
 }
 
 export async function getProblemDevices(): Promise<ProblemDevice[]> {
@@ -331,7 +350,7 @@ export async function getProblemDevices(): Promise<ProblemDevice[]> {
       deviceId: d.id,
       code: d.code,
       className: d.className || '',
-      problem: PNP_ERRORS[d.code] || `Erreur matérielle (code ${d.code})`,
+      problem: PNP_ERRORS[d.code] ? T(PNP_ERRORS[d.code][0], PNP_ERRORS[d.code][1]) : T(`Hardware error (code ${d.code})`, `Erreur matérielle (code ${d.code})`),
       missingDriver: d.code === 28 || d.code === 39 || d.code === 18
     }))
     .sort((a, b) => Number(b.missingDriver) - Number(a.missingDriver))
@@ -417,7 +436,7 @@ export async function getComponentChecklist(): Promise<ComponentCheck[]> {
   // GPU — compare automatique (NVIDIA) ou outil officiel (AMD/Intel)
   for (const g of gpuStatuses) {
     checks.push({
-      component: 'Carte graphique',
+      component: T('Graphics card', 'Carte graphique'),
       name: g.model,
       installed: g.installed,
       installedDate: null,
@@ -438,7 +457,9 @@ export async function getComponentChecklist(): Promise<ComponentCheck[]> {
         : 'ms-settings:windowsupdate'
     const biosAge = age(raw.biosDate)
     checks.push({
-      component: isLaptop ? 'BIOS / pilotes constructeur (laptop)' : 'Carte mère (chipset, BIOS, LAN, audio)',
+      component: isLaptop
+        ? T('BIOS / manufacturer drivers (laptop)', 'BIOS / pilotes constructeur (laptop)')
+        : T('Motherboard (chipset, BIOS, LAN, audio)', 'Carte mère (chipset, BIOS, LAN, audio)'),
       name: `${raw.moboVendor} ${raw.moboModel}`.trim(),
       installed: `BIOS ${raw.biosVersion}`,
       installedDate: raw.biosDate || null,
@@ -446,8 +467,14 @@ export async function getComponentChecklist(): Promise<ComponentCheck[]> {
       officialUrl: moboUrl,
       advice:
         biosAge != null && biosAge >= 2
-          ? `Ton BIOS date d\u2019il y a ${biosAge} ans — il y a sûrement des MAJ (stabilité, perf CPU, compat RAM). Compare la version sur la page officielle.`
-          : 'Page officielle de ta carte : BIOS, chipset, LAN et audio les plus récents y sont toujours avant Windows Update.'
+          ? T(
+              `Your BIOS is ${biosAge} years old — updates likely exist (stability, CPU perf, RAM compat). Compare the version on the official page.`,
+              `Ton BIOS date d\u2019il y a ${biosAge} ans — il y a sûrement des MAJ (stabilité, perf CPU, compat RAM). Compare la version sur la page officielle.`
+            )
+          : T(
+              'Your board\u2019s official page: the newest BIOS, chipset, LAN and audio always land there before Windows Update.',
+              'Page officielle de ta carte : BIOS, chipset, LAN et audio les plus récents y sont toujours avant Windows Update.'
+            )
     })
 
     // Chipset selon le CPU
@@ -460,7 +487,10 @@ export async function getComponentChecklist(): Promise<ComponentCheck[]> {
         installedDate: null,
         status: 'manual',
         officialUrl: 'https://www.amd.com/fr/support/download/drivers.html',
-        advice: 'Le pilote chipset AMD officiel gère le boost des cœurs — crucial pour les Ryzen (surtout X3D). Installe-le depuis amd.com, pas Windows Update.'
+        advice: T(
+          'The official AMD chipset driver manages core boosting — crucial for Ryzen (especially X3D). Install it from amd.com, not Windows Update.',
+          'Le pilote chipset AMD officiel gère le boost des cœurs — crucial pour les Ryzen (surtout X3D). Installe-le depuis amd.com, pas Windows Update.'
+        )
       })
     } else if (cpu.manufacturer.toLowerCase().includes('intel')) {
       checks.push({
@@ -470,7 +500,10 @@ export async function getComponentChecklist(): Promise<ComponentCheck[]> {
         installedDate: null,
         status: 'manual',
         officialUrl: 'https://www.intel.fr/content/www/fr/fr/support/detect.html',
-        advice: 'Intel DSA scanne ta machine et installe chipset/ME/réseau officiels en un clic — plus récent que Windows Update.'
+        advice: T(
+          'Intel DSA scans your machine and installs official chipset/ME/network in one click — newer than Windows Update.',
+          'Intel DSA scanne ta machine et installe chipset/ME/réseau officiels en un clic — plus récent que Windows Update.'
+        )
       })
     }
 
@@ -488,7 +521,7 @@ export async function getComponentChecklist(): Promise<ComponentCheck[]> {
               ? moboUrl
               : moboUrl
       checks.push({
-        component: nm.includes('wi-fi') || nm.includes('wireless') || nm.includes('wifi') ? 'Wi-Fi' : 'Réseau (LAN)',
+        component: nm.includes('wi-fi') || nm.includes('wireless') || nm.includes('wifi') ? 'Wi-Fi' : T('Network (LAN)', 'Réseau (LAN)'),
         name: n.name,
         installed: n.version,
         installedDate: n.date || null,
@@ -496,10 +529,13 @@ export async function getComponentChecklist(): Promise<ComponentCheck[]> {
         officialUrl: url,
         advice:
           a != null && a >= 1.5
-            ? `Pilote vieux de ${a} an(s) — une version plus récente existe probablement (stabilité du ping en jeu).`
+            ? T(
+                `Driver is ${a} year(s) old — a newer version probably exists (in-game ping stability).`,
+                `Pilote vieux de ${a} an(s) — une version plus récente existe probablement (stabilité du ping en jeu).`
+              )
             : nm.includes('realtek')
-              ? 'Pilotes Realtek officiels = page de ta carte mère / constructeur du PC.'
-              : 'Vérifie la dernière version sur le lien officiel.'
+              ? T('Official Realtek drivers = your motherboard / PC maker\u2019s page.', 'Pilotes Realtek officiels = page de ta carte mère / constructeur du PC.')
+              : T('Check the latest version on the official link.', 'Vérifie la dernière version sur le lien officiel.')
       })
     }
 
@@ -515,7 +551,10 @@ export async function getComponentChecklist(): Promise<ComponentCheck[]> {
         installedDate: aDev.date || null,
         status: a != null && a >= 2 ? 'probably-update' : 'manual',
         officialUrl: moboUrl,
-        advice: 'L\u2019audio (Realtek & co) se met à jour depuis la page officielle de ta carte mère / ton PC.'
+        advice: T(
+          'Audio (Realtek & co) updates come from your motherboard / PC maker\u2019s official page.',
+          'L\u2019audio (Realtek & co) se met à jour depuis la page officielle de ta carte mère / ton PC.'
+        )
       })
     }
   }
@@ -525,13 +564,16 @@ export async function getComponentChecklist(): Promise<ComponentCheck[]> {
     const vendorKey = Object.keys(SSD_TOOLS).find((k) => `${d.vendor} ${d.name}`.toLowerCase().includes(k))
     if (vendorKey && (d.type || '').toUpperCase().includes('SSD')) {
       checks.push({
-        component: 'SSD (firmware)',
+        component: T('SSD (firmware)', 'SSD (firmware)'),
         name: d.name,
         installed: d.firmwareRevision || null,
         installedDate: null,
         status: 'manual',
         officialUrl: SSD_TOOLS[vendorKey].url,
-        advice: `${SSD_TOOLS[vendorKey].label} : vérifie le firmware — corrige les bugs de perf et de longévité.`
+        advice: T(
+          `${SSD_TOOLS[vendorKey].label}: check the firmware — fixes perf and longevity bugs.`,
+          `${SSD_TOOLS[vendorKey].label} : vérifie le firmware — corrige les bugs de perf et de longévité.`
+        )
       })
     }
   }

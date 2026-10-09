@@ -430,101 +430,164 @@ export async function getTweakRelevance(): Promise<TweakRelevance[]> {
       id: 'power-high',
       impact: r.isLaptop ? 'medium' : 'high',
       reason: r.isLaptop
-        ? 'Utile branché sur secteur, mais vide la batterie plus vite — active-le seulement pour jouer.'
-        : 'PC fixe : aucun inconvénient, le CPU reste à pleine fréquence. À activer.'
+        ? T(
+            'Useful when plugged in, but drains the battery faster — enable it only to play.',
+            'Utile branché sur secteur, mais vide la batterie plus vite — active-le seulement pour jouer.'
+          )
+        : T(
+            'Desktop PC: no downside, the CPU stays at full clock. Turn it on.',
+            'PC fixe : aucun inconvénient, le CPU reste à pleine fréquence. À activer.'
+          )
     },
     {
       id: 'gamedvr-off',
       impact: lowCpu || lowRam ? 'high' : 'medium',
       reason:
         lowCpu || lowRam
-          ? `Sur ta config (${r.cpu.physicalCores} cœurs / ${Math.round(r.ram.totalGB)} Go), l\u2019enregistrement permanent coûte cher — gain réel.`
-          : 'Ta config est costaude, mais c\u2019est toujours quelques % de FPS gratuits si tu ne clippes pas.'
+          ? T(
+              `On your config (${r.cpu.physicalCores} cores / ${Math.round(r.ram.totalGB)} GB), the always-on recording is costly — real gain.`,
+              `Sur ta config (${r.cpu.physicalCores} cœurs / ${Math.round(r.ram.totalGB)} Go), l\u2019enregistrement permanent coûte cher — gain réel.`
+            )
+          : T(
+              'Your config is beefy, but it\u2019s still a few free % of FPS if you don\u2019t clip.',
+              'Ta config est costaude, mais c\u2019est toujours quelques % de FPS gratuits si tu ne clippes pas.'
+            )
     },
     {
       id: 'gamemode-on',
       impact: 'high',
-      reason: 'Recommandé sur toutes les configs : priorise le jeu et bloque les MAJ Windows en pleine partie.'
+      reason: T(
+        'Recommended on every config: prioritizes the game and blocks Windows updates mid-match.',
+        'Recommandé sur toutes les configs : priorise le jeu et bloque les MAJ Windows en pleine partie.'
+      )
     },
     {
       id: 'hags-on',
       impact: hasModernGpu ? 'high' : 'low',
       reason: hasModernGpu
-        ? 'Ton GPU est récent : HAGS réduit la latence de rendu, et il est requis pour la Frame Generation NVIDIA/AMD.'
-        : 'Ton GPU est ancien ou intégré : HAGS peut ne rien apporter, voire être instable. À tester.'
+        ? T(
+            'Your GPU is recent: HAGS reduces render latency and is required for NVIDIA/AMD Frame Generation.',
+            'Ton GPU est récent : HAGS réduit la latence de rendu, et il est requis pour la Frame Generation NVIDIA/AMD.'
+          )
+        : T(
+            'Your GPU is old or integrated: HAGS may bring nothing, or even be unstable. Worth testing.',
+            'Ton GPU est ancien ou intégré : HAGS peut ne rien apporter, voire être instable. À tester.'
+          )
     },
     {
       id: 'mouse-accel-off',
       impact: 'high',
-      reason: 'Indispensable pour viser dans les FPS — la visée devient reproductible. Aucun coût.'
+      reason: T(
+        'Essential for aiming in FPS games — your aim becomes repeatable. Zero cost.',
+        'Indispensable pour viser dans les FPS — la visée devient reproductible. Aucun coût.'
+      )
     },
     {
       id: 'network-latency',
       impact: 'medium',
-      reason: 'Utile pour le jeu en ligne compétitif : ping plus stable sous charge. Aucun effet hors ligne.'
+      reason: T(
+        'Useful for competitive online play: more stable ping under load. No effect offline.',
+        'Utile pour le jeu en ligne compétitif : ping plus stable sous charge. Aucun effet hors ligne.'
+      )
     },
     {
       id: 'prio-foreground',
       impact: lowCpu ? 'high' : 'medium',
       reason: lowCpu
-        ? `Avec ${r.cpu.physicalCores} cœurs, donner la priorité au jeu actif évite les stutters quand un truc tourne derrière.`
-        : 'Ton CPU a de la marge, mais ça aide quand Discord/Chrome tournent en fond.'
+        ? T(
+            `With ${r.cpu.physicalCores} cores, prioritizing the active game avoids stutters when something runs behind.`,
+            `Avec ${r.cpu.physicalCores} cœurs, donner la priorité au jeu actif évite les stutters quand un truc tourne derrière.`
+          )
+        : T(
+            'Your CPU has headroom, but it helps when Discord/Chrome run in the background.',
+            'Ton CPU a de la marge, mais ça aide quand Discord/Chrome tournent en fond.'
+          )
     },
     {
       id: 'power-throttling-off',
       impact: r.isLaptop ? 'low' : 'medium',
       reason: r.isLaptop
-        ? 'Sur portable ça consomme nettement plus de batterie — déconseillé sauf branché en permanence.'
-        : 'Utile si tu streames/enregistres : OBS et Discord ne sont plus bridés en arrière-plan.'
+        ? T(
+            'On a laptop it clearly uses more battery — not recommended unless always plugged in.',
+            'Sur portable ça consomme nettement plus de batterie — déconseillé sauf branché en permanence.'
+          )
+        : T(
+            'Useful if you stream/record: OBS and Discord are no longer throttled in the background.',
+            'Utile si tu streames/enregistres : OBS et Discord ne sont plus bridés en arrière-plan.'
+          )
     },
     {
       id: 'background-apps-off',
       impact: lowRam || lowCpu ? 'high' : 'low',
       reason:
         lowRam || lowCpu
-          ? 'Ta config profite directement de chaque Mo/cycle récupéré sur les applis Store en fond.'
-          : 'Config confortable : le gain existe mais il est marginal chez toi.'
+          ? T(
+              'Your config directly benefits from every MB/cycle reclaimed from background Store apps.',
+              'Ta config profite directement de chaque Mo/cycle récupéré sur les applis Store en fond.'
+            )
+          : T(
+              'Comfortable config: the gain exists but is marginal for you.',
+              'Config confortable : le gain existe mais il est marginal chez toi.'
+            )
     },
     {
       id: 'stickykeys-hotkey-off',
       impact: 'medium',
-      reason: 'Zéro perf, 100% confort : plus jamais la popup Shift en pleine partie.'
+      reason: T(
+        'Zero perf, 100% comfort: never again the Shift popup mid-game.',
+        'Zéro perf, 100% confort : plus jamais la popup Shift en pleine partie.'
+      )
     },
     {
       id: 'menu-delay',
       impact: 'low',
-      reason: 'Pur ressenti de réactivité Windows — aucun FPS en jeu, mais agréable au quotidien.'
+      reason: T(
+        'Pure Windows snappiness feel — no in-game FPS, but pleasant daily.',
+        'Pur ressenti de réactivité Windows — aucun FPS en jeu, mais agréable au quotidien.'
+      )
     },
     {
       id: 'storage-sense',
       impact: diskFull ? 'high' : 'low',
       reason: diskFull
-        ? 'Ton disque C: est presque plein — l\u2019assistant stockage va t\u2019éviter les ralentissements du disque saturé.'
-        : 'Ton disque a de la place : utile en prévention, pas urgent.'
+        ? T(
+            'Your C: drive is almost full — Storage Sense will spare you saturated-disk slowdowns.',
+            'Ton disque C: est presque plein — l\u2019assistant stockage va t\u2019éviter les ralentissements du disque saturé.'
+          )
+        : T('Your disk has room: useful as prevention, not urgent.', 'Ton disque a de la place : utile en prévention, pas urgent.')
     },
     {
       id: 'telemetry-min',
       impact: lowCpu ? 'medium' : 'low',
       reason: lowCpu
-        ? 'Moins de tâches de fond = CPU plus dispo sur une petite config.'
-        : 'Gain perf minime sur ta config, surtout une question de préférence vie privée.'
+        ? T('Fewer background tasks = more CPU available on a small config.', 'Moins de tâches de fond = CPU plus dispo sur une petite config.')
+        : T(
+            'Minimal perf gain on your config, mostly a privacy preference.',
+            'Gain perf minime sur ta config, surtout une question de préférence vie privée.'
+          )
     },
     {
       id: 'hibernate-off',
       impact: diskFull && !r.isLaptop ? 'high' : 'low',
       reason: r.isLaptop
-        ? 'Déconseillé sur portable : tu perds la protection batterie faible.'
+        ? T('Not recommended on laptops: you lose low-battery protection.', 'Déconseillé sur portable : tu perds la protection batterie faible.')
         : diskFull
-          ? 'Disque presque plein : récupérer plusieurs Go de hiberfil.sys vaut le coup.'
-          : 'Tu as de la place disque, le gain est accessoire.'
+          ? T('Disk almost full: reclaiming several GB of hiberfil.sys is worth it.', 'Disque presque plein : récupérer plusieurs Go de hiberfil.sys vaut le coup.')
+          : T('You have disk space, the gain is incidental.', 'Tu as de la place disque, le gain est accessoire.')
     },
     {
       id: 'visualfx-balanced',
       impact: lowRam || !hasModernGpu ? 'medium' : 'low',
       reason:
         lowRam || !hasModernGpu
-          ? 'Sur ta config, alléger les animations rend le bureau nettement plus réactif.'
-          : 'Ta machine encaisse les animations sans broncher — question de goût.'
+          ? T(
+              'On your config, lighter animations make the desktop clearly more responsive.',
+              'Sur ta config, alléger les animations rend le bureau nettement plus réactif.'
+            )
+          : T(
+              'Your machine handles animations effortlessly — a matter of taste.',
+              'Ta machine encaisse les animations sans broncher — question de goût.'
+            )
     }
   ]
   return rel

@@ -179,7 +179,7 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
         </div>
       )}
       {checklist
-        ?.filter((c) => c.component !== 'Carte graphique')
+        ?.filter((c) => c.component !== 'Carte graphique' && c.component !== 'Graphics card')
         .map((c, i) => (
         <div
           className="row stagger"

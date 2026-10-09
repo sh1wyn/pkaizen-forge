@@ -1,4 +1,5 @@
 import { ps, psJson } from './powershell'
+import { T } from './i18n'
 import type { CleanTarget, CleanResult } from '../../shared/types'
 
 interface Target {
@@ -72,6 +73,32 @@ const TARGETS: Target[] = [
 ]
 
 export async function previewClean(): Promise<CleanTarget[]> {
+  const LABELS: Record<string, { name: string; description: string }> = {
+    'user-temp': {
+      name: T('User temporary files', 'Fichiers temporaires utilisateur'),
+      description: T('Contents of %TEMP% — risk-free, in-use files are skipped.', 'Contenu de %TEMP% — sans risque, les fichiers en cours d\u2019utilisation sont ignorés.')
+    },
+    'win-temp': {
+      name: T('Windows temporary files', 'Fichiers temporaires Windows'),
+      description: T('C:\\Windows\\Temp — requires administrator rights.', 'C:\\Windows\\Temp — nécessite les droits administrateur.')
+    },
+    'wu-cache': {
+      name: T('Windows Update cache', 'Cache Windows Update'),
+      description: T('Old update files already installed (SoftwareDistribution\\Download).', 'Anciens fichiers de mise à jour déjà installés (SoftwareDistribution\\Download).')
+    },
+    thumbs: {
+      name: T('Thumbnail cache', 'Cache des miniatures'),
+      description: T('Explorer image/video thumbnails — regenerated automatically.', 'Miniatures d\u2019images/vidéos de l\u2019Explorateur — régénérées automatiquement.')
+    },
+    recycle: {
+      name: T('Recycle Bin', 'Corbeille'),
+      description: T('Empties the recycle bin on all drives.', 'Vide la corbeille de tous les lecteurs.')
+    },
+    dns: {
+      name: T('DNS cache', 'Cache DNS'),
+      description: T('Flushes the DNS cache — fixes some game server connection issues.', 'Vide le cache DNS — règle certains problèmes de connexion aux serveurs de jeu.')
+    }
+  }
   const results = await Promise.all(
     TARGETS.map(async (t) => {
       let sizeMB: number | null = null
@@ -81,7 +108,8 @@ export async function previewClean(): Promise<CleanTarget[]> {
       } catch {
         sizeMB = null
       }
-      return { id: t.id, name: t.name, description: t.description, needsAdmin: t.needsAdmin, sizeMB }
+      const label = LABELS[t.id] ?? { name: t.name, description: t.description }
+      return { id: t.id, name: label.name, description: label.description, needsAdmin: t.needsAdmin, sizeMB }
     })
   )
   return results
