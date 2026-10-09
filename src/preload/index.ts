@@ -21,6 +21,7 @@ const api = {
   getVendorLinks: () => ipcRenderer.invoke('drivers:links'),
   getGpuDriverStatus: () => ipcRenderer.invoke('drivers:gpuStatus'),
   getProblemDevices: () => ipcRenderer.invoke('drivers:problems'),
+  getComponentChecklist: () => ipcRenderer.invoke('drivers:checklist'),
   searchDriverUpdates: () => ipcRenderer.invoke('drivers:wuSearch'),
   installDriverUpdates: (ids: string[]) => ipcRenderer.invoke('drivers:wuInstall', ids),
   wingetUpgradePackage: (id: string) => ipcRenderer.invoke('drivers:wingetUpgrade', id),

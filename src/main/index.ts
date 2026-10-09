@@ -5,7 +5,14 @@ import { getSystemReport, getLiveStats } from './system/sysinfo'
 import { getInsights } from './system/analyzer'
 import { listTweaks, getTweakStates, applyTweak, revertTweak } from './system/optimizer'
 import { previewClean, runClean } from './system/cleaner'
-import { scanDrivers, getWingetUpgrades, getVendorLinks, getGpuDriverStatus, getProblemDevices } from './system/drivers'
+import {
+  scanDrivers,
+  getWingetUpgrades,
+  getVendorLinks,
+  getGpuDriverStatus,
+  getProblemDevices,
+  getComponentChecklist
+} from './system/drivers'
 import { getStartupItems, setStartupEnabled } from './system/startup'
 import {
   searchDriverUpdates,
@@ -39,6 +46,7 @@ function createWindow(): void {
     backgroundColor: '#0b0e14',
     autoHideMenuBar: true,
     title: 'Pkaizen Forge',
+    icon: join(__dirname, '../../build/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -108,6 +116,7 @@ function registerIpc(): void {
   ipcMain.handle('drivers:links', () => getVendorLinks())
   ipcMain.handle('drivers:gpuStatus', () => getGpuDriverStatus())
   ipcMain.handle('drivers:problems', () => getProblemDevices())
+  ipcMain.handle('drivers:checklist', () => getComponentChecklist())
   ipcMain.handle('drivers:wuSearch', () => searchDriverUpdates())
   ipcMain.handle('drivers:wuInstall', (_e, ids: string[]) => installDriverUpdates(ids))
   ipcMain.handle('drivers:wingetUpgrade', (_e, id: string) => wingetUpgradePackage(id))

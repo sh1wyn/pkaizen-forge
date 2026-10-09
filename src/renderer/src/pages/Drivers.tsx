@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { DriverEntry, WingetUpgrade, VendorLink, WuDriverUpdate, GpuDriverStatus, ProblemDevice } from '../../../shared/types'
+import type { DriverEntry, WingetUpgrade, VendorLink, WuDriverUpdate, GpuDriverStatus, ProblemDevice, ComponentCheck } from '../../../shared/types'
 import { cached } from '../lib/cache'
 import { useToast } from '../components/Toast'
 
@@ -8,6 +8,7 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
   const [installed, setInstalled] = useState<DriverEntry[] | null>(null)
   const [gpuStatus, setGpuStatus] = useState<GpuDriverStatus[] | null>(null)
   const [problems, setProblems] = useState<ProblemDevice[] | null>(null)
+  const [checklist, setChecklist] = useState<ComponentCheck[] | null>(null)
   const [wu, setWu] = useState<WuDriverUpdate[] | null>(null)
   const [wuSearching, setWuSearching] = useState(false)
   const [wuSelected, setWuSelected] = useState<Set<string>>(new Set())
@@ -22,6 +23,7 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
     cached('drv:installed', () => window.api.scanDrivers()).then(setInstalled)
     cached('drv:gpu', () => window.api.getGpuDriverStatus(), 10 * 60_000).then(setGpuStatus).catch(() => setGpuStatus([]))
     cached('drv:problems', () => window.api.getProblemDevices()).then(setProblems).catch(() => setProblems([]))
+    cached('drv:checklist', () => window.api.getComponentChecklist(), 10 * 60_000).then(setChecklist).catch(() => setChecklist([]))
   }, [])
 
   const searchWu = async (): Promise<void> => {
@@ -126,6 +128,52 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
       {problems && problems.length === 0 && (
         <div className="banner ok">✅ Aucun périphérique en erreur — tous tes composants ont un pilote fonctionnel.</div>
       )}
+
+      <div className="section-title">🧩 Check-up par composant (sources officielles fabricant)</div>
+      <div className="banner info">
+        💡 Règle gamer : les pilotes se prennent sur le site officiel de CHAQUE composant — Windows Update croit souvent
+        être à jour alors que le fabricant a déjà sorti plus récent.
+      </div>
+      {checklist === null && (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <span className="spinner" /> <span className="muted">Inventaire des composants…</span>
+        </div>
+      )}
+      {checklist
+        ?.filter((c) => c.component !== 'Carte graphique')
+        .map((c, i) => (
+        <div
+          className="row stagger"
+          key={`${c.component}-${i}`}
+          style={{
+            borderLeft: `3px solid ${
+              c.status === 'update' ? 'var(--red)' : c.status === 'probably-update' ? 'var(--orange)' : c.status === 'ok' ? 'var(--green)' : 'var(--border)'
+            }`
+          }}
+        >
+          <div className="row-info">
+            <div className="row-title">
+              <span className="badge reboot">{c.component}</span>
+              {c.name}
+              {c.status === 'update' && <span className="badge old">MAJ dispo</span>}
+              {c.status === 'probably-update' && <span className="badge admin">Probablement obsolète</span>}
+              {c.status === 'ok' && <span className="badge okay">À jour</span>}
+            </div>
+            <div className="row-desc">
+              {c.installed && (
+                <>
+                  Installé : <b>{c.installed}</b>
+                  {c.installedDate && ` (${c.installedDate})`} —{' '}
+                </>
+              )}
+              {c.advice}
+            </div>
+          </div>
+          <button className="btn" onClick={() => window.api.openExternal(c.officialUrl)}>
+            Page officielle ↗
+          </button>
+        </div>
+      ))}
 
       <div className="section-title">🔄 Mise à jour automatique (Windows Update)</div>
       {!isAdmin && (

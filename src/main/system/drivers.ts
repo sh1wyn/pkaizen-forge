@@ -1,7 +1,7 @@
 import si from 'systeminformation'
 import { release } from 'os'
 import { ps, psJson, asArray } from './powershell'
-import type { DriverEntry, WingetUpgrade, VendorLink, GpuDriverStatus, ProblemDevice } from '../../shared/types'
+import type { DriverEntry, WingetUpgrade, VendorLink, GpuDriverStatus, ProblemDevice, ComponentCheck } from '../../shared/types'
 
 interface RawDriver {
   device: string
@@ -335,4 +335,207 @@ export async function getProblemDevices(): Promise<ProblemDevice[]> {
       missingDriver: d.code === 28 || d.code === 39 || d.code === 18
     }))
     .sort((a, b) => Number(b.missingDriver) - Number(a.missingDriver))
+}
+
+/* ------------------------------------------------------------------ */
+/*  Check-up par composant — liens officiels fabricant pour chacun     */
+/* ------------------------------------------------------------------ */
+
+const MOBO_SEARCH: Record<string, (model: string) => string> = {
+  asus: (m) => `https://www.asus.com/fr/search/?q=${encodeURIComponent(m)}`,
+  msi: (m) => `https://fr.msi.com/search/${encodeURIComponent(m)}`,
+  gigabyte: (m) => `https://www.gigabyte.com/fr/Search?kw=${encodeURIComponent(m)}`,
+  asrock: (m) => `https://www.asrock.com/search/index.asp?keyword=${encodeURIComponent(m)}`,
+  biostar: () => `https://www.biostar.com.tw/app/en/support/download.php`,
+  'nzxt': () => `https://support.nzxt.com/hc/fr`,
+  evga: () => `https://fr.evga.com/support/download/`
+}
+
+const SSD_TOOLS: Record<string, { label: string; url: string }> = {
+  samsung: { label: 'Samsung Magician (firmware + pilote NVMe)', url: 'https://semiconductor.samsung.com/consumer-storage/magician/' },
+  'western digital': { label: 'WD Dashboard (firmware SSD)', url: 'https://support-en.wd.com/app/products/downloads/softwaredownloads' },
+  wd: { label: 'WD Dashboard (firmware SSD)', url: 'https://support-en.wd.com/app/products/downloads/softwaredownloads' },
+  sandisk: { label: 'SanDisk Dashboard', url: 'https://kb.sandisk.com/app/answers/detail/a_id/15108' },
+  crucial: { label: 'Crucial Storage Executive (firmware SSD)', url: 'https://www.crucial.fr/support/storage-executive' },
+  micron: { label: 'Crucial Storage Executive (firmware SSD)', url: 'https://www.crucial.fr/support/storage-executive' },
+  kingston: { label: 'Kingston SSD Manager (firmware)', url: 'https://www.kingston.com/fr/support/technical/ssdmanager' },
+  seagate: { label: 'SeaTools (firmware)', url: 'https://www.seagate.com/fr/fr/support/downloads/seatools/' },
+  corsair: { label: 'Corsair SSD Toolbox', url: 'https://www.corsair.com/fr/fr/downloads' },
+  intel: { label: 'Solidigm Storage Tool', url: 'https://www.solidigm.com/support-page/drivers-downloads.html' }
+}
+
+interface RawHw {
+  moboVendor: string
+  moboModel: string
+  biosVersion: string
+  biosDate: string
+  nics: { name: string; version: string; date: string }[] | { name: string; version: string; date: string } | null
+  audio: { name: string; version: string; date: string }[] | { name: string; version: string; date: string } | null
+}
+
+export async function getComponentChecklist(): Promise<ComponentCheck[]> {
+  const [raw, gpuStatuses, diskLayout, system, battery] = await Promise.all([
+    psJson<RawHw>(
+      `
+      $bb = Get-CimInstance Win32_BaseBoard
+      $bios = Get-CimInstance Win32_BIOS
+      $drv = Get-CimInstance Win32_PnPSignedDriver
+      $nics = $drv | Where-Object { $_.DeviceClass -eq 'NET' -and $_.DeviceName -and $_.DriverVersion -and $_.DeviceName -notmatch 'Virtual|TAP|Loopback|VPN|Hyper-V|Bluetooth' } |
+        Sort-Object DeviceName -Unique | ForEach-Object {
+          @{ name = $_.DeviceName; version = $_.DriverVersion; date = if ($_.DriverDate) { $_.DriverDate.ToString('yyyy-MM-dd') } else { '' } }
+        }
+      $audio = $drv | Where-Object { $_.DeviceClass -eq 'MEDIA' -and $_.DeviceName -and $_.DriverVersion } |
+        Sort-Object DeviceName -Unique | ForEach-Object {
+          @{ name = $_.DeviceName; version = $_.DriverVersion; date = if ($_.DriverDate) { $_.DriverDate.ToString('yyyy-MM-dd') } else { '' } }
+        }
+      ConvertTo-Json @{
+        moboVendor = [string]$bb.Manufacturer
+        moboModel  = [string]$bb.Product
+        biosVersion = [string]$bios.SMBIOSBIOSVersion
+        biosDate   = if ($bios.ReleaseDate) { $bios.ReleaseDate.ToString('yyyy-MM-dd') } else { '' }
+        nics = $nics
+        audio = $audio
+      } -Depth 4
+      `,
+      60000
+    ),
+    getGpuDriverStatus(),
+    si.diskLayout(),
+    si.system(),
+    si.battery()
+  ])
+
+  const checks: ComponentCheck[] = []
+  const now = Date.now()
+  const age = (d: string): number | null => {
+    const t = Date.parse(d)
+    return Number.isNaN(t) ? null : Math.round(((now - t) / (365.25 * 24 * 3600 * 1000)) * 10) / 10
+  }
+  const isLaptop = battery.hasBattery
+  const sysVendor = (system.manufacturer || '').toLowerCase()
+
+  // GPU — compare automatique (NVIDIA) ou outil officiel (AMD/Intel)
+  for (const g of gpuStatuses) {
+    checks.push({
+      component: 'Carte graphique',
+      name: g.model,
+      installed: g.installed,
+      installedDate: null,
+      status: g.upToDate === false ? 'update' : g.upToDate === true ? 'ok' : 'manual',
+      officialUrl: g.downloadUrl,
+      advice: g.note
+    })
+  }
+
+  if (raw) {
+    // Carte mère : chipset + BIOS depuis le site du fabricant (desktop) ou OEM (laptop)
+    const moboVendorKey = Object.keys(MOBO_SEARCH).find((k) => (raw.moboVendor || '').toLowerCase().includes(k))
+    const oemKey = Object.keys(VENDOR_SITES).find((k) => sysVendor.includes(k))
+    const moboUrl = isLaptop
+      ? (oemKey ? VENDOR_SITES[oemKey].url : 'ms-settings:windowsupdate')
+      : moboVendorKey
+        ? MOBO_SEARCH[moboVendorKey](raw.moboModel)
+        : 'ms-settings:windowsupdate'
+    const biosAge = age(raw.biosDate)
+    checks.push({
+      component: isLaptop ? 'BIOS / pilotes constructeur (laptop)' : 'Carte mère (chipset, BIOS, LAN, audio)',
+      name: `${raw.moboVendor} ${raw.moboModel}`.trim(),
+      installed: `BIOS ${raw.biosVersion}`,
+      installedDate: raw.biosDate || null,
+      status: biosAge != null && biosAge >= 2 ? 'probably-update' : 'manual',
+      officialUrl: moboUrl,
+      advice:
+        biosAge != null && biosAge >= 2
+          ? `Ton BIOS date d\u2019il y a ${biosAge} ans — il y a sûrement des MAJ (stabilité, perf CPU, compat RAM). Compare la version sur la page officielle.`
+          : 'Page officielle de ta carte : BIOS, chipset, LAN et audio les plus récents y sont toujours avant Windows Update.'
+    })
+
+    // Chipset selon le CPU
+    const cpu = await si.cpu()
+    if (cpu.manufacturer.toLowerCase().includes('amd')) {
+      checks.push({
+        component: 'Chipset',
+        name: `AMD (${cpu.brand})`,
+        installed: null,
+        installedDate: null,
+        status: 'manual',
+        officialUrl: 'https://www.amd.com/fr/support/download/drivers.html',
+        advice: 'Le pilote chipset AMD officiel gère le boost des cœurs — crucial pour les Ryzen (surtout X3D). Installe-le depuis amd.com, pas Windows Update.'
+      })
+    } else if (cpu.manufacturer.toLowerCase().includes('intel')) {
+      checks.push({
+        component: 'Chipset',
+        name: `Intel (${cpu.brand})`,
+        installed: null,
+        installedDate: null,
+        status: 'manual',
+        officialUrl: 'https://www.intel.fr/content/www/fr/fr/support/detect.html',
+        advice: 'Intel DSA scanne ta machine et installe chipset/ME/réseau officiels en un clic — plus récent que Windows Update.'
+      })
+    }
+
+    // Cartes réseau
+    for (const n of asArray(raw.nics)) {
+      const a = age(n.date)
+      const nm = n.name.toLowerCase()
+      const url = nm.includes('intel')
+        ? 'https://www.intel.fr/content/www/fr/fr/support/detect.html'
+        : nm.includes('killer')
+          ? 'https://www.intel.fr/content/www/fr/fr/download/19779/'
+          : nm.includes('realtek')
+            ? moboUrl
+            : nm.includes('mediatek')
+              ? moboUrl
+              : moboUrl
+      checks.push({
+        component: nm.includes('wi-fi') || nm.includes('wireless') || nm.includes('wifi') ? 'Wi-Fi' : 'Réseau (LAN)',
+        name: n.name,
+        installed: n.version,
+        installedDate: n.date || null,
+        status: a != null && a >= 1.5 ? 'probably-update' : 'manual',
+        officialUrl: url,
+        advice:
+          a != null && a >= 1.5
+            ? `Pilote vieux de ${a} an(s) — une version plus récente existe probablement (stabilité du ping en jeu).`
+            : nm.includes('realtek')
+              ? 'Pilotes Realtek officiels = page de ta carte mère / constructeur du PC.'
+              : 'Vérifie la dernière version sur le lien officiel.'
+      })
+    }
+
+    // Audio
+    for (const aDev of asArray(raw.audio).slice(0, 3)) {
+      const a = age(aDev.date)
+      const nm = aDev.name.toLowerCase()
+      if (nm.includes('nvidia') || nm.includes('amd') || nm.includes('intel display')) continue // audio HDMI suit le pilote GPU
+      checks.push({
+        component: 'Audio',
+        name: aDev.name,
+        installed: aDev.version,
+        installedDate: aDev.date || null,
+        status: a != null && a >= 2 ? 'probably-update' : 'manual',
+        officialUrl: moboUrl,
+        advice: 'L\u2019audio (Realtek & co) se met à jour depuis la page officielle de ta carte mère / ton PC.'
+      })
+    }
+  }
+
+  // SSD : firmware via l'outil officiel du fabricant
+  for (const d of diskLayout) {
+    const vendorKey = Object.keys(SSD_TOOLS).find((k) => `${d.vendor} ${d.name}`.toLowerCase().includes(k))
+    if (vendorKey && (d.type || '').toUpperCase().includes('SSD')) {
+      checks.push({
+        component: 'SSD (firmware)',
+        name: d.name,
+        installed: d.firmwareRevision || null,
+        installedDate: null,
+        status: 'manual',
+        officialUrl: SSD_TOOLS[vendorKey].url,
+        advice: `${SSD_TOOLS[vendorKey].label} : vérifie le firmware — corrige les bugs de perf et de longévité.`
+      })
+    }
+  }
+
+  const order = { update: 0, 'probably-update': 1, manual: 2, ok: 3 }
+  return checks.sort((a, b) => order[a.status] - order[b.status])
 }

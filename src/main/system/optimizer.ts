@@ -149,6 +149,74 @@ const TWEAKS: Tweak[] = [
       if ($v -eq 0xffffffff -or $v -eq -1) { '1' }`
   },
   {
+    id: 'prio-foreground',
+    name: 'Priorité CPU au premier plan (jeu actif)',
+    description:
+      'Règle Win32PrioritySeparation sur 38 : Windows donne des tranches CPU plus longues au programme actif — ton jeu. Tweak classique des configs e-sport, réversible.',
+    category: 'performance',
+    needsAdmin: true,
+    laptopWarning: false,
+    needsReboot: false,
+    recommended: true,
+    apply: `Set-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl' -Name 'Win32PrioritySeparation' -Value 38 -Type DWord`,
+    revert: `Set-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl' -Name 'Win32PrioritySeparation' -Value 2 -Type DWord`,
+    check: `
+      $v = (Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\PriorityControl' -Name 'Win32PrioritySeparation' -ErrorAction SilentlyContinue).Win32PrioritySeparation
+      if ($v -eq 38) { '1' }`
+  },
+  {
+    id: 'power-throttling-off',
+    name: 'Désactiver le Power Throttling',
+    description:
+      'Empêche Windows de brider les processus en arrière-plan (Discord, OBS, launcher) pendant que tu joues — évite les micro-freezes. Sur portable : consomme plus de batterie.',
+    category: 'performance',
+    needsAdmin: true,
+    laptopWarning: true,
+    needsReboot: true,
+    recommended: false,
+    apply: `
+      New-Item -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling' -Force | Out-Null
+      Set-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling' -Name 'PowerThrottlingOff' -Value 1 -Type DWord`,
+    revert: `Remove-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling' -Name 'PowerThrottlingOff' -ErrorAction SilentlyContinue`,
+    check: `
+      $v = (Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling' -Name 'PowerThrottlingOff' -ErrorAction SilentlyContinue).PowerThrottlingOff
+      if ($v -eq 1) { '1' }`
+  },
+  {
+    id: 'background-apps-off',
+    name: 'Couper les applis UWP en arrière-plan',
+    description:
+      'Empêche les applis du Microsoft Store de tourner en fond (météo, actus…). Gain réel sur les petits CPU et les laptops. Les notifications de ces applis seront coupées.',
+    category: 'gaming',
+    needsAdmin: false,
+    laptopWarning: false,
+    needsReboot: false,
+    recommended: true,
+    apply: `
+      New-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications' -Force | Out-Null
+      Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications' -Name 'GlobalUserDisabled' -Value 1 -Type DWord`,
+    revert: `Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications' -Name 'GlobalUserDisabled' -Value 0 -Type DWord`,
+    check: `
+      $v = (Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications' -Name 'GlobalUserDisabled' -ErrorAction SilentlyContinue).GlobalUserDisabled
+      if ($v -eq 1) { '1' }`
+  },
+  {
+    id: 'stickykeys-hotkey-off',
+    name: 'Désactiver le raccourci Touches rémanentes',
+    description:
+      'Fini la popup « Touches rémanentes » quand tu spammes Shift en pleine partie. Zéro impact perf, purement anti-rage.',
+    category: 'gaming',
+    needsAdmin: false,
+    laptopWarning: false,
+    needsReboot: false,
+    recommended: true,
+    apply: `Set-ItemProperty 'HKCU:\\Control Panel\\Accessibility\\StickyKeys' -Name 'Flags' -Value '506'`,
+    revert: `Set-ItemProperty 'HKCU:\\Control Panel\\Accessibility\\StickyKeys' -Name 'Flags' -Value '510'`,
+    check: `
+      $v = (Get-ItemProperty 'HKCU:\\Control Panel\\Accessibility\\StickyKeys' -Name 'Flags' -ErrorAction SilentlyContinue).Flags
+      if ($v -eq '506') { '1' }`
+  },
+  {
     id: 'menu-delay',
     name: 'Interface Windows plus réactive',
     description:

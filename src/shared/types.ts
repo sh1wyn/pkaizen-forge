@@ -140,6 +140,16 @@ export interface GpuDriverStatus {
   note: string
 }
 
+export interface ComponentCheck {
+  component: string
+  name: string
+  installed: string | null
+  installedDate: string | null
+  status: 'update' | 'probably-update' | 'manual' | 'ok'
+  officialUrl: string
+  advice: string
+}
+
 export interface ProblemDevice {
   name: string
   deviceId: string

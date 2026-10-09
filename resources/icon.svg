@@ -1,0 +1,38 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#151b2e"/>
+      <stop offset="1" stop-color="#0b0e14"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6c5ce7"/>
+      <stop offset="1" stop-color="#00d2ff"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#00d2ff"/>
+      <stop offset="1" stop-color="#6c5ce7"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect x="16" y="16" width="480" height="480" rx="104" fill="url(#bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="104" fill="none" stroke="url(#accent)" stroke-width="14"/>
+
+  <!-- enclume -->
+  <g fill="#e8ecf4">
+    <path d="M118 294 h276 a10 10 0 0 1 10 10 v14 a10 10 0 0 1 -10 10 h-74 c-8 0 -12 6 -10 14 l10 40 c2 8 -4 14 -12 14 h-104 c-8 0 -14 -6 -12 -14 l10 -40 c2 -8 -2 -14 -10 -14 h-64 a10 10 0 0 1 -10 -10 v-14 a10 10 0 0 1 10 -10 z"/>
+    <path d="M150 258 c0 -12 10 -22 22 -22 h200 c12 0 22 10 22 22 v22 h-244 z"/>
+    <path d="M394 236 h44 c8 0 12 8 8 15 l-22 36 c-4 7 -14 7 -18 0 l-16 -36 c-4 -7 0 -15 4 -15 z" opacity="0.85"/>
+  </g>
+
+  <!-- éclair qui frappe l'enclume -->
+  <g filter="url(#glow)">
+    <path d="M286 72 L198 212 h50 L212 320 L332 180 h-56 L310 72 z" fill="url(#bolt)"/>
+  </g>
+</svg>
