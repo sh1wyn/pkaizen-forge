@@ -277,6 +277,10 @@ const STR = {
     'dash.loadDetails': 'Load advanced details',
     'drv.scanAll': 'Scan drivers & components',
     'drv.pressScan': '💡 Click “Scan drivers & components” above — nothing runs without your go, so the PC stays fast.',
+    'app.checkUpdates': 'Check for updates',
+    'app.upToDate': 'You\u2019re up to date (v{0}) ✔',
+    'app.updateFound': 'Update {0} found — downloading in background…',
+    'app.updateDev': 'Updates only work in the installed version.',
     // common
     'common.lang': 'Language'
   },
@@ -538,6 +542,10 @@ const STR = {
     'dash.loadDetails': 'Charger les détails avancés',
     'drv.scanAll': 'Scanner pilotes & composants',
     'drv.pressScan': '💡 Clique sur « Scanner pilotes & composants » ci-dessus — rien ne tourne sans ton accord, le PC reste fluide.',
+    'app.checkUpdates': 'Vérifier les mises à jour',
+    'app.upToDate': 'Tu es à jour (v{0}) ✔',
+    'app.updateFound': 'Mise à jour {0} trouvée — téléchargement en fond…',
+    'app.updateDev': 'Les mises à jour ne marchent que dans la version installée.',
     'common.lang': 'Langue'
   },
   es: {
@@ -797,6 +805,10 @@ const STR = {
     'dash.loadDetails': 'Cargar detalles avanzados',
     'drv.scanAll': 'Escanear drivers y componentes',
     'drv.pressScan': '💡 Pulsa “Escanear drivers y componentes” arriba — nada se ejecuta sin tu permiso, el PC sigue fluido.',
+    'app.checkUpdates': 'Buscar actualizaciones',
+    'app.upToDate': 'Estás al día (v{0}) ✔',
+    'app.updateFound': 'Actualización {0} encontrada — descargando en segundo plano…',
+    'app.updateDev': 'Las actualizaciones solo funcionan en la versión instalada.',
     'common.lang': 'Idioma'
   },
   ru: {
@@ -1056,6 +1068,10 @@ const STR = {
     'dash.loadDetails': 'Загрузить подробности',
     'drv.scanAll': 'Сканировать драйверы и компоненты',
     'drv.pressScan': '💡 Нажмите «Сканировать драйверы и компоненты» выше — ничего не запускается без вашего согласия.',
+    'app.checkUpdates': 'Проверить обновления',
+    'app.upToDate': 'У вас актуальная версия (v{0}) ✔',
+    'app.updateFound': 'Найдено обновление {0} — загрузка в фоне…',
+    'app.updateDev': 'Обновления работают только в установленной версии.',
     'common.lang': 'Язык'
   },
   de: {
@@ -1315,6 +1331,10 @@ const STR = {
     'dash.loadDetails': 'Erweiterte Details laden',
     'drv.scanAll': 'Treiber & Komponenten scannen',
     'drv.pressScan': '💡 Klicke oben auf „Treiber & Komponenten scannen“ — nichts läuft ohne dein OK, der PC bleibt flüssig.',
+    'app.checkUpdates': 'Nach Updates suchen',
+    'app.upToDate': 'Du bist aktuell (v{0}) ✔',
+    'app.updateFound': 'Update {0} gefunden — lädt im Hintergrund…',
+    'app.updateDev': 'Updates funktionieren nur in der installierten Version.',
     'common.lang': 'Sprache'
   },
   pt: {
@@ -1574,6 +1594,10 @@ const STR = {
     'dash.loadDetails': 'Carregar detalhes avançados',
     'drv.scanAll': 'Escanear drivers e componentes',
     'drv.pressScan': '💡 Clique em “Escanear drivers e componentes” acima — nada roda sem sua permissão, o PC continua fluido.',
+    'app.checkUpdates': 'Verificar atualizações',
+    'app.upToDate': 'Você está em dia (v{0}) ✔',
+    'app.updateFound': 'Atualização {0} encontrada — baixando em segundo plano…',
+    'app.updateDev': 'As atualizações só funcionam na versão instalada.',
     'common.lang': 'Idioma'
   },
   it: {
@@ -1833,6 +1857,10 @@ const STR = {
     'dash.loadDetails': 'Carica dettagli avanzati',
     'drv.scanAll': 'Scansiona driver e componenti',
     'drv.pressScan': '💡 Premi “Scansiona driver e componenti” qui sopra — niente gira senza il tuo consenso, il PC resta fluido.',
+    'app.checkUpdates': 'Controlla aggiornamenti',
+    'app.upToDate': 'Sei aggiornato (v{0}) ✔',
+    'app.updateFound': 'Aggiornamento {0} trovato — download in background…',
+    'app.updateDev': 'Gli aggiornamenti funzionano solo nella versione installata.',
     'common.lang': 'Lingua'
   }
 } as const

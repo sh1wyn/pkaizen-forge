@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ToastProvider } from './components/Toast'
+import { ToastProvider, useToast } from './components/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { I18nProvider, useI18n, type StrKey, type Lang } from './lib/i18n'
 import Dashboard from './pages/Dashboard'
@@ -28,14 +28,28 @@ const NAV: { id: Page; labelKey: StrKey; icon: string }[] = [
 
 function Shell(): React.JSX.Element {
   const { lang, setLang, t } = useI18n()
+  const toast = useToast()
   const [page, setPage] = useState<Page>('dashboard')
   const [isAdmin, setIsAdmin] = useState(false)
   const [pendingReboot, setPendingReboot] = useState(false)
+  const [version, setVersion] = useState('')
+  const [updBusy, setUpdBusy] = useState(false)
 
   useEffect(() => {
     window.api.isAdmin().then(setIsAdmin)
     window.api.checkPendingReboot().then(setPendingReboot)
+    window.api.getVersion().then(setVersion)
   }, [])
+
+  const checkUpdates = async (): Promise<void> => {
+    setUpdBusy(true)
+    const r = await window.api.checkUpdates()
+    if (r.status === 'uptodate') toast(t('app.upToDate', r.current), 'success')
+    else if (r.status === 'available') toast(t('app.updateFound', r.newVersion ?? ''), 'info')
+    else if (r.status === 'dev') toast(t('app.updateDev'), 'info')
+    else toast(r.message || 'Update check failed', 'error')
+    setUpdBusy(false)
+  }
 
   return (
     <>
@@ -68,6 +82,9 @@ function Shell(): React.JSX.Element {
           </button>
         ))}
         <div className="sidebar-footer">
+          <button className="btn" style={{ width: '100%', marginBottom: 10, fontSize: 12 }} disabled={updBusy} onClick={checkUpdates}>
+            {updBusy ? <span className="spinner" /> : '🔄'} {t('app.checkUpdates')}{version ? ` (v${version})` : ''}
+          </button>
           {isAdmin ? t('sidebar.admin') : t('sidebar.user')}
           <br />
           {t('sidebar.tagline')}

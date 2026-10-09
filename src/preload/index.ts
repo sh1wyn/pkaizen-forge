@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 const api = {
-  setLang: (lang: string) => ipcRenderer.invoke('app:setLang', lang),
+  setLang: (lang: 'en' | 'fr' | 'es' | 'ru' | 'de' | 'pt' | 'it') => ipcRenderer.invoke('app:setLang', lang),
+  getVersion: () => ipcRenderer.invoke('app:version'),
+  checkUpdates: () => ipcRenderer.invoke('app:checkUpdates'),
   getSystemReport: () => ipcRenderer.invoke('system:report'),
   getLiveStats: () => ipcRenderer.invoke('system:live'),
   getInsights: () => ipcRenderer.invoke('system:insights'),

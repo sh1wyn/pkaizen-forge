@@ -30,6 +30,8 @@ declare global {
   interface Window {
     api: {
       setLang: (lang: string) => Promise<void>
+      getVersion: () => Promise<string>
+      checkUpdates: () => Promise<{ status: 'dev' | 'available' | 'uptodate' | 'error'; current: string; newVersion?: string; message?: string }>
       getSystemReport: () => Promise<SystemReport>
       getLiveStats: () => Promise<LiveStats>
       getInsights: () => Promise<Insight[]>

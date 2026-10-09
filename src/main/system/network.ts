@@ -145,9 +145,9 @@ const CF_HEADERS = {
 }
 
 const DOWN_STREAMS = 4
-const DOWN_MS = 8000
+const DOWN_MS = 6000
 const UP_STREAMS = 3
-const UP_BYTES_EACH = 15_000_000
+const UP_BYTES_EACH = 10_000_000
 
 export async function speedTest(
   onProgress: (phase: 'down' | 'up', mbps: number, percent: number) => void

@@ -113,6 +113,18 @@ function createWindow(): void {
 
 function registerIpc(): void {
   ipcMain.handle('app:setLang', (_e, l: Lang) => setLang(l))
+  ipcMain.handle('app:version', () => app.getVersion())
+  handle('app:checkUpdates', async () => {
+    if (!app.isPackaged || !updaterRef) return { status: 'dev', current: app.getVersion() }
+    try {
+      const res = await updaterRef.checkForUpdates()
+      const newVersion = res?.updateInfo?.version
+      const available = !!newVersion && newVersion !== app.getVersion()
+      return { status: available ? 'available' : 'uptodate', current: app.getVersion(), newVersion }
+    } catch (e) {
+      return { status: 'error', current: app.getVersion(), message: (e as Error).message }
+    }
+  })
   handle('system:report', () => getSystemReport())
   handle('system:live', () => getLiveStats())
   handle('system:insights', () => getInsights())
@@ -195,6 +207,8 @@ function registerIpc(): void {
 }
 
 // Auto-update via les releases GitHub (repo privé : token optionnel dans userData/update-token.txt).
+let updaterRef: typeof import('electron-updater').autoUpdater | null = null
+
 async function setupAutoUpdate(): Promise<void> {
   if (!app.isPackaged) return
   try {
@@ -204,6 +218,7 @@ async function setupAutoUpdate(): Promise<void> {
       if (token) process.env.GH_TOKEN = token
     }
     const { autoUpdater } = await import('electron-updater')
+    updaterRef = autoUpdater
     autoUpdater.autoDownload = true
     autoUpdater.autoInstallOnAppQuit = true
     autoUpdater.on('update-downloaded', (info) => {
