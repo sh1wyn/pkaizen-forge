@@ -16,7 +16,30 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
   const [winget, setWinget] = useState<WingetUpgrade[] | null>(null)
   const [wingetBusy, setWingetBusy] = useState<string | null>(null)
   const [rebootNeeded, setRebootNeeded] = useState(false)
+  const [nvBusy, setNvBusy] = useState(false)
+  const [nvProgress, setNvProgress] = useState(0)
+  const [dsaBusy, setDsaBusy] = useState(false)
   const toast = useToast()
+
+  useEffect(() => {
+    const off = window.api.onNvidiaProgress(setNvProgress)
+    return off
+  }, [])
+
+  const installNvidia = async (url: string): Promise<void> => {
+    setNvBusy(true)
+    setNvProgress(0)
+    const res = await window.api.installNvidiaDriver(url)
+    toast(res.message || '', res.ok ? 'success' : 'error')
+    setNvBusy(false)
+  }
+
+  const installDsa = async (): Promise<void> => {
+    setDsaBusy(true)
+    const res = await window.api.installIntelDsa()
+    toast(res.message || '', res.ok ? 'success' : 'error')
+    setDsaBusy(false)
+  }
 
   useEffect(() => {
     cached('drv:links', () => window.api.getVendorLinks()).then(setLinks)
@@ -99,10 +122,35 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
               {g.upToDate === true && <span className="badge okay">À jour ({g.installed})</span>}
             </div>
             <div className="row-desc">{g.note}</div>
+            {nvBusy && g.vendor === 'nvidia' && (
+              <div className="bar-track" style={{ marginTop: 8 }}>
+                <div className="bar-fill" style={{ width: `${nvProgress}%` }} />
+              </div>
+            )}
           </div>
-          <button className="btn" onClick={() => window.api.openExternal(g.downloadUrl)}>
-            {g.upToDate === false ? '⬇ Télécharger' : 'Vérifier ↗'}
-          </button>
+          {g.vendor === 'nvidia' && g.upToDate === false ? (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn primary" disabled={nvBusy} onClick={() => installNvidia(g.downloadUrl)}>
+                {nvBusy ? <span className="spinner" /> : '⬇'} Installer ({nvProgress > 0 && nvBusy ? `${nvProgress}%` : 'direct NVIDIA'})
+              </button>
+              <button className="btn" onClick={() => window.api.openExternal('https://www.nvidia.com/fr-fr/drivers/')}>
+                Page ↗
+              </button>
+            </div>
+          ) : g.vendor === 'intel' ? (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn primary" disabled={dsaBusy} onClick={installDsa}>
+                {dsaBusy ? <span className="spinner" /> : '⬇'} Installer Intel DSA
+              </button>
+              <button className="btn" onClick={() => window.api.openExternal(g.downloadUrl)}>
+                Page ↗
+              </button>
+            </div>
+          ) : (
+            <button className="btn" onClick={() => window.api.openExternal(g.downloadUrl)}>
+              {g.upToDate === false ? '⬇ Télécharger' : 'Vérifier ↗'}
+            </button>
+          )}
         </div>
       ))}
 

@@ -21,10 +21,13 @@ import {
   installDriverUpdates,
   wingetUpgradePackage,
   rebootNow,
-  checkPendingReboot
+  checkPendingReboot,
+  downloadAndRunNvidiaInstaller,
+  installIntelDsa
 } from './system/updater'
 
 let isAdminCached: boolean | null = null
+let mainWin: BrowserWindow | null = null
 
 async function isAdmin(): Promise<boolean> {
   if (isAdminCached != null) return isAdminCached
@@ -55,6 +58,10 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: false
     }
+  })
+  mainWin = win
+  win.on('closed', () => {
+    if (mainWin === win) mainWin = null
   })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -122,6 +129,10 @@ function registerIpc(): void {
   ipcMain.handle('drivers:wuSearch', () => searchDriverUpdates())
   ipcMain.handle('drivers:wuInstall', (_e, ids: string[]) => installDriverUpdates(ids))
   ipcMain.handle('drivers:wingetUpgrade', (_e, id: string) => wingetUpgradePackage(id))
+  ipcMain.handle('drivers:installNvidia', (e, url: string) =>
+    downloadAndRunNvidiaInstaller(url, (p) => e.sender.send('drivers:nvidiaProgress', p))
+  )
+  ipcMain.handle('drivers:installIntelDsa', () => installIntelDsa())
   ipcMain.handle('system:reboot', () => rebootNow())
   ipcMain.handle('system:pendingReboot', () => checkPendingReboot())
 
@@ -138,13 +149,26 @@ function registerIpc(): void {
   })
 }
 
-app.whenReady().then(() => {
-  registerIpc()
-  createWindow()
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+// Une seule instance : relancer l'app ramène la fenêtre existante.
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWin) {
+      if (mainWin.isMinimized()) mainWin.restore()
+      mainWin.focus()
+    }
   })
-})
+
+  app.whenReady().then(() => {
+    registerIpc()
+    createWindow()
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
+  })
+}
 
 app.on('window-all-closed', () => {
   app.quit()

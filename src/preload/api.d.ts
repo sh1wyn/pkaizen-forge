@@ -48,6 +48,9 @@ declare global {
       searchDriverUpdates: () => Promise<WuDriverUpdate[]>
       installDriverUpdates: (ids: string[]) => Promise<WuInstallResult>
       wingetUpgradePackage: (id: string) => Promise<ActionResult>
+      installNvidiaDriver: (url: string) => Promise<ActionResult>
+      onNvidiaProgress: (cb: (percent: number) => void) => () => void
+      installIntelDsa: () => Promise<ActionResult>
       rebootNow: () => Promise<void>
       checkPendingReboot: () => Promise<boolean>
 

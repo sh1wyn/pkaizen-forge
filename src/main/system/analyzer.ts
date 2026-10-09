@@ -233,6 +233,17 @@ export async function getInsights(): Promise<Insight[]> {
     // check optionnel
   }
 
+  // --- Uptime ---
+  const uptimeDays = si.time().uptime / 86400
+  if (uptimeDays >= 7) {
+    add({
+      severity: 'warn',
+      title: `PC allumé depuis ${Math.floor(uptimeDays)} jours sans redémarrage`,
+      detail:
+        'Les fuites mémoire des pilotes et des applis s\u2019accumulent avec le temps : FPS en baisse et stutters. Un vrai redémarrage (pas la veille) remet tout à plat.'
+    })
+  }
+
   // --- OS ---
   if (osInfo.arch !== 'x64' && osInfo.arch !== 'arm64') {
     add({

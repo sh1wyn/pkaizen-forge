@@ -25,6 +25,13 @@ const api = {
   searchDriverUpdates: () => ipcRenderer.invoke('drivers:wuSearch'),
   installDriverUpdates: (ids: string[]) => ipcRenderer.invoke('drivers:wuInstall', ids),
   wingetUpgradePackage: (id: string) => ipcRenderer.invoke('drivers:wingetUpgrade', id),
+  installNvidiaDriver: (url: string) => ipcRenderer.invoke('drivers:installNvidia', url),
+  onNvidiaProgress: (cb: (percent: number) => void) => {
+    const listener = (_e: unknown, p: number): void => cb(p)
+    ipcRenderer.on('drivers:nvidiaProgress', listener)
+    return () => ipcRenderer.removeListener('drivers:nvidiaProgress', listener)
+  },
+  installIntelDsa: () => ipcRenderer.invoke('drivers:installIntelDsa'),
   rebootNow: () => ipcRenderer.invoke('system:reboot'),
   checkPendingReboot: () => ipcRenderer.invoke('system:pendingReboot'),
 
