@@ -236,6 +236,34 @@ const STR = {
     'rep.saved': '✅ Report saved: {0} — send this file to anyone.',
     'rep.done': 'Report generated and opened in your browser ✔',
     'rep.fail': 'Generation failed',
+    'nav.browser': 'Browser',
+    'browser.title': 'Browser',
+    'browser.subtitle':
+      'Detects your current browser and recommends the best ones — performance, RAM usage and privacy — installable in one click from official sources (winget).',
+    'browser.current': 'Default browser',
+    'browser.default': 'Set as default in Windows.',
+    'browser.runningNow': 'Running now',
+    'browser.ramUse': 'currently using {0} MB of RAM',
+    'browser.noneRunning': 'No browser currently running.',
+    'browser.heavyWarn': '⚠ {0} is using {1} MB of RAM right now — close unused tabs before gaming, or try a lighter browser below.',
+    'browser.tip': '💡 The browser is often the #1 RAM eater while gaming. A browser with built-in ad blocking also runs fewer scripts = less CPU per page.',
+    'browser.recs': '🏆 Recommended browsers',
+    'browser.whyBrave':
+      'Chromium-based (same engine as Chrome, 100% compatible) with a built-in ad/tracker blocker: pages load lighter = less CPU/RAM, and strong privacy by default.',
+    'browser.whyEdge':
+      'Already on your PC — the most RAM-efficient Chromium on Windows thanks to sleeping tabs and efficiency mode. Enable those in its settings for best results.',
+    'browser.whyFirefox':
+      'The only major independent engine (non-Chromium). Excellent privacy, strict tracker blocking and solid performance — ideal to leave the Google ecosystem.',
+    'browser.install': 'Install (winget)',
+    'browser.installed': 'Installed',
+    'browser.isDefault': 'Your default',
+    'browser.detecting': 'Detecting browsers…',
+    'browser.perf': 'Perf/RAM',
+    'browser.privacy': 'Privacy',
+    'net.oneClick': '⚡ Change DNS in one click',
+    'net.dnsSet': 'Switch to {0}',
+    'net.dnsAuto': 'Restore automatic (DHCP)',
+    'net.dnsAdmin': '⚠ Changing DNS requires running the app as administrator.',
     // common
     'common.lang': 'Language'
   },
@@ -456,6 +484,34 @@ const STR = {
     'rep.saved': '✅ Rapport enregistré : {0} — envoie ce fichier à qui tu veux.',
     'rep.done': 'Rapport généré et ouvert dans ton navigateur ✔',
     'rep.fail': 'Échec de la génération',
+    'nav.browser': 'Navigateur',
+    'browser.title': 'Navigateur',
+    'browser.subtitle':
+      'Détecte ton navigateur actuel et recommande les meilleurs — performances, RAM et vie privée — installables en 1 clic depuis des sources officielles (winget).',
+    'browser.current': 'Navigateur par défaut',
+    'browser.default': 'Défini par défaut dans Windows.',
+    'browser.runningNow': 'En cours d\u2019exécution',
+    'browser.ramUse': 'utilise {0} Mo de RAM en ce moment',
+    'browser.noneRunning': 'Aucun navigateur ouvert actuellement.',
+    'browser.heavyWarn': '⚠ {0} utilise {1} Mo de RAM là maintenant — ferme les onglets inutiles avant de jouer, ou essaie un navigateur plus léger ci-dessous.',
+    'browser.tip': '💡 Le navigateur est souvent le 1er bouffeur de RAM pendant le jeu. Un navigateur avec bloqueur de pub intégré exécute aussi moins de scripts = moins de CPU par page.',
+    'browser.recs': '🏆 Navigateurs recommandés',
+    'browser.whyBrave':
+      'Basé sur Chromium (même moteur que Chrome, 100% compatible) avec bloqueur de pubs/trackers intégré : pages plus légères = moins de CPU/RAM, et vie privée solide par défaut.',
+    'browser.whyEdge':
+      'Déjà sur ton PC — le Chromium le plus économe en RAM sur Windows grâce aux onglets en veille et au mode efficacité. Active-les dans ses réglages.',
+    'browser.whyFirefox':
+      'Le seul grand moteur indépendant (non-Chromium). Excellente vie privée, blocage strict des trackers et bonnes perfs — idéal pour sortir de l\u2019écosystème Google.',
+    'browser.install': 'Installer (winget)',
+    'browser.installed': 'Installé',
+    'browser.isDefault': 'Ton navigateur actuel',
+    'browser.detecting': 'Détection des navigateurs…',
+    'browser.perf': 'Perf/RAM',
+    'browser.privacy': 'Vie privée',
+    'net.oneClick': '⚡ Changer de DNS en 1 clic',
+    'net.dnsSet': 'Basculer sur {0}',
+    'net.dnsAuto': 'Remettre en automatique (DHCP)',
+    'net.dnsAdmin': '⚠ Changer le DNS nécessite de lancer l\u2019app en administrateur.',
     'common.lang': 'Langue'
   },
   es: {
@@ -674,6 +730,34 @@ const STR = {
     'rep.saved': '✅ Informe guardado: {0} — envíaselo a quien quieras.',
     'rep.done': 'Informe generado y abierto en tu navegador ✔',
     'rep.fail': 'Error al generar',
+    'nav.browser': 'Navegador',
+    'browser.title': 'Navegador',
+    'browser.subtitle':
+      'Detecta tu navegador actual y recomienda los mejores — rendimiento, RAM y privacidad — instalables en 1 clic desde fuentes oficiales (winget).',
+    'browser.current': 'Navegador predeterminado',
+    'browser.default': 'Predeterminado en Windows.',
+    'browser.runningNow': 'En ejecución',
+    'browser.ramUse': 'usando {0} MB de RAM ahora mismo',
+    'browser.noneRunning': 'Ningún navegador abierto ahora.',
+    'browser.heavyWarn': '⚠ {0} está usando {1} MB de RAM — cierra pestañas inútiles antes de jugar o prueba un navegador más ligero abajo.',
+    'browser.tip': '💡 El navegador suele ser el mayor consumidor de RAM mientras juegas. Uno con bloqueador de anuncios integrado ejecuta menos scripts = menos CPU por página.',
+    'browser.recs': '🏆 Navegadores recomendados',
+    'browser.whyBrave':
+      'Basado en Chromium (mismo motor que Chrome, 100% compatible) con bloqueador de anuncios/rastreadores integrado: páginas más ligeras = menos CPU/RAM, y gran privacidad por defecto.',
+    'browser.whyEdge':
+      'Ya está en tu PC — el Chromium más eficiente en RAM en Windows gracias a las pestañas en suspensión y el modo eficiencia. Actívalos en sus ajustes.',
+    'browser.whyFirefox':
+      'El único gran motor independiente (no Chromium). Excelente privacidad, bloqueo estricto de rastreadores y buen rendimiento — ideal para salir del ecosistema Google.',
+    'browser.install': 'Instalar (winget)',
+    'browser.installed': 'Instalado',
+    'browser.isDefault': 'Tu navegador actual',
+    'browser.detecting': 'Detectando navegadores…',
+    'browser.perf': 'Rendimiento/RAM',
+    'browser.privacy': 'Privacidad',
+    'net.oneClick': '⚡ Cambiar DNS en 1 clic',
+    'net.dnsSet': 'Cambiar a {0}',
+    'net.dnsAuto': 'Restaurar automático (DHCP)',
+    'net.dnsAdmin': '⚠ Cambiar el DNS requiere ejecutar la app como administrador.',
     'common.lang': 'Idioma'
   },
   ru: {
@@ -892,6 +976,34 @@ const STR = {
     'rep.saved': '✅ Отчёт сохранён: {0} — отправьте файл кому угодно.',
     'rep.done': 'Отчёт создан и открыт в браузере ✔',
     'rep.fail': 'Ошибка генерации',
+    'nav.browser': 'Браузер',
+    'browser.title': 'Браузер',
+    'browser.subtitle':
+      'Определяет ваш текущий браузер и рекомендует лучшие — производительность, RAM и приватность — установка в 1 клик из официальных источников (winget).',
+    'browser.current': 'Браузер по умолчанию',
+    'browser.default': 'Установлен по умолчанию в Windows.',
+    'browser.runningNow': 'Запущен сейчас',
+    'browser.ramUse': 'использует {0} МБ RAM прямо сейчас',
+    'browser.noneRunning': 'Сейчас браузеры не запущены.',
+    'browser.heavyWarn': '⚠ {0} использует {1} МБ RAM — закройте лишние вкладки перед игрой или попробуйте более лёгкий браузер ниже.',
+    'browser.tip': '💡 Браузер — часто главный пожиратель RAM во время игры. Браузер со встроенным блокировщиком рекламы выполняет меньше скриптов = меньше CPU.',
+    'browser.recs': '🏆 Рекомендуемые браузеры',
+    'browser.whyBrave':
+      'На базе Chromium (тот же движок, что у Chrome, 100% совместим) со встроенным блокировщиком рекламы/трекеров: страницы легче = меньше CPU/RAM, отличная приватность.',
+    'browser.whyEdge':
+      'Уже на вашем ПК — самый экономный по RAM Chromium на Windows благодаря спящим вкладкам и режиму эффективности. Включите их в настройках.',
+    'browser.whyFirefox':
+      'Единственный крупный независимый движок (не Chromium). Отличная приватность, строгая блокировка трекеров и хорошая скорость.',
+    'browser.install': 'Установить (winget)',
+    'browser.installed': 'Установлен',
+    'browser.isDefault': 'Ваш текущий',
+    'browser.detecting': 'Определение браузеров…',
+    'browser.perf': 'Произв./RAM',
+    'browser.privacy': 'Приватность',
+    'net.oneClick': '⚡ Сменить DNS в 1 клик',
+    'net.dnsSet': 'Переключить на {0}',
+    'net.dnsAuto': 'Вернуть автоматически (DHCP)',
+    'net.dnsAdmin': '⚠ Для смены DNS запустите приложение от имени администратора.',
     'common.lang': 'Язык'
   },
   de: {
@@ -1110,6 +1222,34 @@ const STR = {
     'rep.saved': '✅ Bericht gespeichert: {0} — schicke die Datei, wem du willst.',
     'rep.done': 'Bericht erstellt und im Browser geöffnet ✔',
     'rep.fail': 'Erstellung fehlgeschlagen',
+    'nav.browser': 'Browser',
+    'browser.title': 'Browser',
+    'browser.subtitle':
+      'Erkennt deinen aktuellen Browser und empfiehlt die besten — Leistung, RAM und Privatsphäre — mit 1 Klick aus offiziellen Quellen installierbar (winget).',
+    'browser.current': 'Standardbrowser',
+    'browser.default': 'In Windows als Standard festgelegt.',
+    'browser.runningNow': 'Läuft gerade',
+    'browser.ramUse': 'nutzt gerade {0} MB RAM',
+    'browser.noneRunning': 'Derzeit läuft kein Browser.',
+    'browser.heavyWarn': '⚠ {0} nutzt gerade {1} MB RAM — schließe unnötige Tabs vor dem Spielen oder probiere unten einen leichteren Browser.',
+    'browser.tip': '💡 Der Browser ist oft der größte RAM-Fresser beim Spielen. Ein Browser mit integriertem Werbeblocker führt auch weniger Skripte aus = weniger CPU pro Seite.',
+    'browser.recs': '🏆 Empfohlene Browser',
+    'browser.whyBrave':
+      'Chromium-basiert (gleiche Engine wie Chrome, 100% kompatibel) mit integriertem Werbe-/Tracker-Blocker: leichtere Seiten = weniger CPU/RAM, starke Privatsphäre ab Werk.',
+    'browser.whyEdge':
+      'Bereits auf deinem PC — das RAM-effizienteste Chromium unter Windows dank schlafender Tabs und Effizienzmodus. Aktiviere beides in den Einstellungen.',
+    'browser.whyFirefox':
+      'Die einzige große unabhängige Engine (kein Chromium). Hervorragende Privatsphäre, strikte Tracker-Blockierung und solide Leistung.',
+    'browser.install': 'Installieren (winget)',
+    'browser.installed': 'Installiert',
+    'browser.isDefault': 'Dein Standard',
+    'browser.detecting': 'Browser werden erkannt…',
+    'browser.perf': 'Leistung/RAM',
+    'browser.privacy': 'Privatsphäre',
+    'net.oneClick': '⚡ DNS mit 1 Klick wechseln',
+    'net.dnsSet': 'Wechseln zu {0}',
+    'net.dnsAuto': 'Automatisch wiederherstellen (DHCP)',
+    'net.dnsAdmin': '⚠ DNS-Wechsel erfordert Adminrechte.',
     'common.lang': 'Sprache'
   },
   pt: {
@@ -1328,6 +1468,34 @@ const STR = {
     'rep.saved': '✅ Relatório salvo: {0} — envie o arquivo para quem quiser.',
     'rep.done': 'Relatório gerado e aberto no navegador ✔',
     'rep.fail': 'Falha na geração',
+    'nav.browser': 'Navegador',
+    'browser.title': 'Navegador',
+    'browser.subtitle':
+      'Detecta seu navegador atual e recomenda os melhores — desempenho, RAM e privacidade — instaláveis em 1 clique de fontes oficiais (winget).',
+    'browser.current': 'Navegador padrão',
+    'browser.default': 'Definido como padrão no Windows.',
+    'browser.runningNow': 'Em execução agora',
+    'browser.ramUse': 'usando {0} MB de RAM agora',
+    'browser.noneRunning': 'Nenhum navegador aberto no momento.',
+    'browser.heavyWarn': '⚠ {0} está usando {1} MB de RAM — feche abas desnecessárias antes de jogar ou teste um navegador mais leve abaixo.',
+    'browser.tip': '💡 O navegador costuma ser o maior consumidor de RAM durante o jogo. Um navegador com bloqueador de anúncios integrado roda menos scripts = menos CPU por página.',
+    'browser.recs': '🏆 Navegadores recomendados',
+    'browser.whyBrave':
+      'Baseado em Chromium (mesmo motor do Chrome, 100% compatível) com bloqueador de anúncios/rastreadores integrado: páginas mais leves = menos CPU/RAM, ótima privacidade por padrão.',
+    'browser.whyEdge':
+      'Já está no seu PC — o Chromium mais eficiente em RAM no Windows graças às abas adormecidas e ao modo de eficiência. Ative-os nas configurações.',
+    'browser.whyFirefox':
+      'O único grande motor independente (não Chromium). Excelente privacidade, bloqueio estrito de rastreadores e bom desempenho.',
+    'browser.install': 'Instalar (winget)',
+    'browser.installed': 'Instalado',
+    'browser.isDefault': 'Seu atual',
+    'browser.detecting': 'Detectando navegadores…',
+    'browser.perf': 'Desempenho/RAM',
+    'browser.privacy': 'Privacidade',
+    'net.oneClick': '⚡ Trocar DNS em 1 clique',
+    'net.dnsSet': 'Mudar para {0}',
+    'net.dnsAuto': 'Restaurar automático (DHCP)',
+    'net.dnsAdmin': '⚠ Trocar o DNS exige executar o app como administrador.',
     'common.lang': 'Idioma'
   },
   it: {
@@ -1546,6 +1714,34 @@ const STR = {
     'rep.saved': '✅ Report salvato: {0} — invia il file a chi vuoi.',
     'rep.done': 'Report generato e aperto nel browser ✔',
     'rep.fail': 'Generazione non riuscita',
+    'nav.browser': 'Browser',
+    'browser.title': 'Browser',
+    'browser.subtitle':
+      'Rileva il tuo browser attuale e consiglia i migliori — prestazioni, RAM e privacy — installabili in 1 clic da fonti ufficiali (winget).',
+    'browser.current': 'Browser predefinito',
+    'browser.default': 'Impostato come predefinito in Windows.',
+    'browser.runningNow': 'In esecuzione ora',
+    'browser.ramUse': 'sta usando {0} MB di RAM in questo momento',
+    'browser.noneRunning': 'Nessun browser aperto al momento.',
+    'browser.heavyWarn': '⚠ {0} sta usando {1} MB di RAM — chiudi le schede inutili prima di giocare o prova un browser più leggero qui sotto.',
+    'browser.tip': '💡 Il browser è spesso il principale divoratore di RAM durante il gioco. Un browser con blocco pubblicità integrato esegue anche meno script = meno CPU per pagina.',
+    'browser.recs': '🏆 Browser consigliati',
+    'browser.whyBrave':
+      'Basato su Chromium (stesso motore di Chrome, 100% compatibile) con blocco pubblicità/tracker integrato: pagine più leggere = meno CPU/RAM, ottima privacy di default.',
+    'browser.whyEdge':
+      'Già sul tuo PC — il Chromium più efficiente in RAM su Windows grazie alle schede in sospensione e alla modalità efficienza. Attivale nelle impostazioni.',
+    'browser.whyFirefox':
+      'L\u2019unico grande motore indipendente (non Chromium). Privacy eccellente, blocco rigoroso dei tracker e buone prestazioni.',
+    'browser.install': 'Installa (winget)',
+    'browser.installed': 'Installato',
+    'browser.isDefault': 'Il tuo attuale',
+    'browser.detecting': 'Rilevamento browser…',
+    'browser.perf': 'Prestazioni/RAM',
+    'browser.privacy': 'Privacy',
+    'net.oneClick': '⚡ Cambia DNS in 1 clic',
+    'net.dnsSet': 'Passa a {0}',
+    'net.dnsAuto': 'Ripristina automatico (DHCP)',
+    'net.dnsAdmin': '⚠ Cambiare DNS richiede l\u2019app come amministratore.',
     'common.lang': 'Lingua'
   }
 } as const

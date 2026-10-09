@@ -11,9 +11,10 @@ const pingColor = (ms: number | null): string => {
   return 'var(--red)'
 }
 
-export default function Network(): React.JSX.Element {
+export default function Network({ isAdmin }: { isAdmin: boolean }): React.JSX.Element {
   const { t } = useI18n()
   const [info, setInfo] = useState<NetInfo | null>(null)
+  const [dnsBusy, setDnsBusy] = useState<string | null>(null)
   const [pings, setPings] = useState<PingResult[] | null>(null)
   const [dns, setDns] = useState<DnsBench[] | null>(null)
   const [testing, setTesting] = useState(false)
@@ -36,6 +37,13 @@ export default function Network(): React.JSX.Element {
       toast(t('net.error'), 'error')
     }
     setTesting(false)
+  }
+
+  const applyDns = async (preset: string): Promise<void> => {
+    setDnsBusy(preset)
+    const res = await window.api.setDns(preset)
+    toast(res.message || '', res.ok ? 'success' : 'error')
+    setDnsBusy(null)
   }
 
   return (
@@ -108,6 +116,28 @@ export default function Network(): React.JSX.Element {
             )
           })}
           <div className="banner info">{t('net.dnsTip')}</div>
+
+          <div className="section-title">{t('net.oneClick')}</div>
+          {!isAdmin && <div className="banner warn">{t('net.dnsAdmin')}</div>}
+          <div className="toolbar">
+            {[
+              { preset: 'cloudflare', label: 'Cloudflare (1.1.1.1)' },
+              { preset: 'google', label: 'Google (8.8.8.8)' },
+              { preset: 'quad9', label: 'Quad9 (9.9.9.9)' }
+            ].map((d) => (
+              <button
+                key={d.preset}
+                className="btn primary"
+                disabled={dnsBusy != null || !isAdmin}
+                onClick={() => applyDns(d.preset)}
+              >
+                {dnsBusy === d.preset ? <span className="spinner" /> : '⚡'} {t('net.dnsSet', d.label)}
+              </button>
+            ))}
+            <button className="btn" disabled={dnsBusy != null || !isAdmin} onClick={() => applyDns('auto')}>
+              {dnsBusy === 'auto' ? <span className="spinner" /> : '↺'} {t('net.dnsAuto')}
+            </button>
+          </div>
         </>
       )}
     </>

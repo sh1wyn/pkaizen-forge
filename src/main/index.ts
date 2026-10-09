@@ -17,7 +17,8 @@ import {
   getComponentChecklist
 } from './system/drivers'
 import { getStartupItems, setStartupEnabled } from './system/startup'
-import { getNetInfo, pingTest, dnsBench } from './system/network'
+import { getNetInfo, pingTest, dnsBench, setDns } from './system/network'
+import { getBrowserReport, installBrowser } from './system/browser'
 import { generateReport } from './system/report'
 import {
   searchDriverUpdates,
@@ -176,6 +177,9 @@ function registerIpc(): void {
   handle('net:info', () => getNetInfo())
   handle('net:ping', () => pingTest())
   handle('net:dns', () => dnsBench())
+  handle('net:setDns', (_e, preset: string) => setDns(preset))
+  handle('browser:report', () => getBrowserReport())
+  handle('browser:install', (_e, id: string) => installBrowser(id))
   handle('report:generate', () => generateReport())
 
   handle('shell:open', (_e, url: string) => {

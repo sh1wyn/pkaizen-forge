@@ -45,6 +45,9 @@ const api = {
   getNetInfo: () => ipcRenderer.invoke('net:info'),
   pingTest: () => ipcRenderer.invoke('net:ping'),
   dnsBench: () => ipcRenderer.invoke('net:dns'),
+  setDns: (preset: string) => ipcRenderer.invoke('net:setDns', preset),
+  getBrowserReport: () => ipcRenderer.invoke('browser:report'),
+  installBrowser: (id: string) => ipcRenderer.invoke('browser:install', id),
   generateReport: () => ipcRenderer.invoke('report:generate'),
 
   openExternal: (url: string) => ipcRenderer.invoke('shell:open', url)

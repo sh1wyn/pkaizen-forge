@@ -196,6 +196,12 @@ export interface DnsBench {
   ms: number | null
 }
 
+export interface BrowserReport {
+  defaultBrowser: string | null
+  installed: string[]
+  running: { id: string; name: string; ramMB: number }[]
+}
+
 export interface TweakRelevance {
   id: string
   impact: 'high' | 'medium' | 'low'

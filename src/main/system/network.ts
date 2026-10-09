@@ -1,6 +1,7 @@
-import { psJson, asArray } from './powershell'
+import { psJson, ps, asArray } from './powershell'
 import si from 'systeminformation'
-import type { PingResult, NetInfo, DnsBench } from '../../shared/types'
+import { T } from './i18n'
+import type { PingResult, NetInfo, DnsBench, ActionResult } from '../../shared/types'
 
 export async function getNetInfo(): Promise<NetInfo> {
   const [ifaces, def, gw] = await Promise.all([
@@ -20,9 +21,9 @@ export async function getNetInfo(): Promise<NetInfo> {
 export async function pingTest(): Promise<PingResult[]> {
   const gw = (await si.networkGatewayDefault()) || ''
   const targets = [
-    gw ? { host: gw, label: 'Routeur (box)' } : null,
-    { host: '1.1.1.1', label: 'Cloudflare (internet proche)' },
-    { host: '8.8.8.8', label: 'Google DNS' }
+    gw ? { host: gw, label: T('Router (box)', 'Routeur (box)') } : null,
+    { host: '1.1.1.1', label: T('Cloudflare (nearby internet)', 'Cloudflare (internet proche)') },
+    { host: '8.8.8.8', label: T('Google DNS', 'Google DNS') }
   ].filter(Boolean) as { host: string; label: string }[]
 
   const raw = await psJson<
@@ -69,9 +70,10 @@ export async function pingTest(): Promise<PingResult[]> {
 }
 
 export async function dnsBench(): Promise<DnsBench[]> {
+  const current = T('Current DNS', 'DNS actuel')
   const raw = await psJson<{ server: string; ms: number }[] | { server: string; ms: number }>(
     `
-    $servers = @(@{n='DNS actuel';s=$null}, @{n='Cloudflare 1.1.1.1';s='1.1.1.1'}, @{n='Google 8.8.8.8';s='8.8.8.8'}, @{n='Quad9 9.9.9.9';s='9.9.9.9'})
+    $servers = @(@{n='${current.replace(/'/g, "''")}';s=$null}, @{n='Cloudflare 1.1.1.1';s='1.1.1.1'}, @{n='Google 8.8.8.8';s='8.8.8.8'}, @{n='Quad9 9.9.9.9';s='9.9.9.9'})
     $out = foreach ($srv in $servers) {
       $total = 0; $okRuns = 0
       foreach ($domain in @('example.com','wikipedia.org')) {
@@ -90,4 +92,46 @@ export async function dnsBench(): Promise<DnsBench[]> {
     60000
   )
   return asArray(raw).map((r) => ({ server: r.server, ms: r.ms >= 0 ? r.ms : null }))
+}
+
+const DNS_PRESETS: Record<string, string[] | null> = {
+  cloudflare: ['1.1.1.1', '1.0.0.1'],
+  google: ['8.8.8.8', '8.8.4.4'],
+  quad9: ['9.9.9.9', '149.112.112.112'],
+  auto: null
+}
+
+/** Change le DNS de l'interface par défaut en 1 clic (admin requis). */
+export async function setDns(preset: string): Promise<ActionResult> {
+  if (!(preset in DNS_PRESETS)) return { ok: false, message: 'Unknown preset.' }
+  const servers = DNS_PRESETS[preset]
+  try {
+    const script = `
+      $idx = (Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop | Sort-Object RouteMetric | Select-Object -First 1).InterfaceIndex
+      ${servers ? `Set-DnsClientServerAddress -InterfaceIndex $idx -ServerAddresses ${servers.join(',')} -ErrorAction Stop` : `Set-DnsClientServerAddress -InterfaceIndex $idx -ResetServerAddresses -ErrorAction Stop`}
+      Clear-DnsClientCache
+      'OK'
+    `
+    const out = await ps(script, 30000)
+    if (!out.includes('OK')) {
+      return {
+        ok: false,
+        message: T(
+          'Failed — administrator rights are required to change DNS.',
+          'Échec — les droits administrateur sont requis pour changer le DNS.'
+        )
+      }
+    }
+    return {
+      ok: true,
+      message: servers
+        ? T(`DNS switched to ${servers[0]} ✔ (instant, reversible)`, `DNS basculé sur ${servers[0]} ✔ (instantané, réversible)`)
+        : T('DNS restored to automatic (DHCP) ✔', 'DNS remis en automatique (DHCP) ✔')
+    }
+  } catch (e) {
+    return {
+      ok: false,
+      message: T('Failed (admin required): ', 'Échec (admin requis) : ') + (e as Error).message
+    }
+  }
 }

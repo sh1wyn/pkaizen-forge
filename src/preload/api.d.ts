@@ -21,7 +21,8 @@ import type {
   DnsBench,
   TweakRelevance,
   DiskBenchResult,
-  DetailedInfo
+  DetailedInfo,
+  BrowserReport
 } from '../shared/types'
 
 declare global {
@@ -67,6 +68,9 @@ declare global {
       getNetInfo: () => Promise<NetInfo>
       pingTest: () => Promise<PingResult[]>
       dnsBench: () => Promise<DnsBench[]>
+      setDns: (preset: string) => Promise<ActionResult>
+      getBrowserReport: () => Promise<BrowserReport>
+      installBrowser: (id: string) => Promise<ActionResult>
       generateReport: () => Promise<ActionResult & { path?: string }>
 
       openExternal: (url: string) => Promise<void>
