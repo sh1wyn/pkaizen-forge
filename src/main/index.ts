@@ -17,7 +17,7 @@ import {
   getComponentChecklist
 } from './system/drivers'
 import { getStartupItems, setStartupEnabled } from './system/startup'
-import { getNetInfo, pingTest, dnsBench, setDns } from './system/network'
+import { getNetInfo, pingTest, dnsBench, setDns, speedTest } from './system/network'
 import { getBrowserReport, installBrowser } from './system/browser'
 import { generateReport } from './system/report'
 import {
@@ -75,9 +75,11 @@ function createWindow(): void {
     height: 800,
     minWidth: 980,
     minHeight: 640,
-    backgroundColor: '#0b0e14',
+    backgroundColor: '#050609',
     autoHideMenuBar: true,
     title: 'Pkaizen Forge',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#0a0d16', symbolColor: '#9aa3b8', height: 38 },
     icon: join(__dirname, '../../build/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -178,6 +180,9 @@ function registerIpc(): void {
   handle('net:ping', () => pingTest())
   handle('net:dns', () => dnsBench())
   handle('net:setDns', (_e, preset: string) => setDns(preset))
+  handle('net:speedtest', (e) =>
+    speedTest((phase, mbps, percent) => e.sender.send('net:speedProgress', { phase, mbps, percent }))
+  )
   handle('browser:report', () => getBrowserReport())
   handle('browser:install', (_e, id: string) => installBrowser(id))
   handle('report:generate', () => generateReport())

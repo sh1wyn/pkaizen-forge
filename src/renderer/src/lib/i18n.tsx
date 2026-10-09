@@ -264,6 +264,15 @@ const STR = {
     'net.dnsSet': 'Switch to {0}',
     'net.dnsAuto': 'Restore automatic (DHCP)',
     'net.dnsAdmin': '⚠ Changing DNS requires running the app as administrator.',
+    'net.speedSection': '🚀 Speed test (download / upload)',
+    'net.speedRun': 'Run speed test',
+    'net.down': 'Download',
+    'net.up': 'Upload',
+    'net.vExcellent': '✅ Excellent connection: {0} Mbps down / {1} Mbps up — perfect for gaming, streaming and big downloads.',
+    'net.vGood': '🟡 Decent connection ({0} / {1} Mbps). Fine for gaming; large game downloads will take a while.',
+    'net.vWeak': '🔴 Slow connection ({0} / {1} Mbps). Check Wi-Fi vs Ethernet, router placement, or your ISP plan.',
+    'net.vUploadLow': '⚠ Upload is low ({0} Mbps): streaming and Discord screen share will suffer.',
+    'net.speedNote': '💡 Measured against Cloudflare’s official endpoint — the same servers as speed.cloudflare.com.',
     // common
     'common.lang': 'Language'
   },
@@ -512,6 +521,15 @@ const STR = {
     'net.dnsSet': 'Basculer sur {0}',
     'net.dnsAuto': 'Remettre en automatique (DHCP)',
     'net.dnsAdmin': '⚠ Changer le DNS nécessite de lancer l\u2019app en administrateur.',
+    'net.speedSection': '🚀 Test de débit (téléchargement / envoi)',
+    'net.speedRun': 'Lancer le test de débit',
+    'net.down': 'Téléchargement',
+    'net.up': 'Envoi',
+    'net.vExcellent': '✅ Connexion excellente : {0} Mbps down / {1} Mbps up — parfait pour le jeu, le streaming et les gros téléchargements.',
+    'net.vGood': '🟡 Connexion correcte ({0} / {1} Mbps). Ça va pour jouer ; les gros téléchargements de jeux prendront du temps.',
+    'net.vWeak': '🔴 Connexion lente ({0} / {1} Mbps). Vérifie Wi-Fi vs Ethernet, la position du routeur, ou ton offre internet.',
+    'net.vUploadLow': '⚠ Envoi faible ({0} Mbps) : le streaming et le partage d\u2019écran Discord vont souffrir.',
+    'net.speedNote': '💡 Mesuré sur l\u2019endpoint officiel Cloudflare — les mêmes serveurs que speed.cloudflare.com.',
     'common.lang': 'Langue'
   },
   es: {
@@ -758,6 +776,15 @@ const STR = {
     'net.dnsSet': 'Cambiar a {0}',
     'net.dnsAuto': 'Restaurar automático (DHCP)',
     'net.dnsAdmin': '⚠ Cambiar el DNS requiere ejecutar la app como administrador.',
+    'net.speedSection': '🚀 Test de velocidad (descarga / subida)',
+    'net.speedRun': 'Ejecutar test de velocidad',
+    'net.down': 'Descarga',
+    'net.up': 'Subida',
+    'net.vExcellent': '✅ Conexión excelente: {0} Mbps bajada / {1} Mbps subida — perfecta para jugar, streaming y grandes descargas.',
+    'net.vGood': '🟡 Conexión decente ({0} / {1} Mbps). Bien para jugar; las descargas grandes tardarán.',
+    'net.vWeak': '🔴 Conexión lenta ({0} / {1} Mbps). Revisa Wi-Fi vs Ethernet, la posición del router o tu tarifa.',
+    'net.vUploadLow': '⚠ Subida baja ({0} Mbps): el streaming y compartir pantalla en Discord sufrirán.',
+    'net.speedNote': '💡 Medido contra el endpoint oficial de Cloudflare — los mismos servidores que speed.cloudflare.com.',
     'common.lang': 'Idioma'
   },
   ru: {
@@ -1004,6 +1031,15 @@ const STR = {
     'net.dnsSet': 'Переключить на {0}',
     'net.dnsAuto': 'Вернуть автоматически (DHCP)',
     'net.dnsAdmin': '⚠ Для смены DNS запустите приложение от имени администратора.',
+    'net.speedSection': '🚀 Тест скорости (загрузка / отдача)',
+    'net.speedRun': 'Запустить тест скорости',
+    'net.down': 'Загрузка',
+    'net.up': 'Отдача',
+    'net.vExcellent': '✅ Отличное соединение: {0} Мбит/с вниз / {1} вверх — идеально для игр, стриминга и больших загрузок.',
+    'net.vGood': '🟡 Нормальное соединение ({0} / {1} Мбит/с). Для игр хватает; большие загрузки будут небыстрыми.',
+    'net.vWeak': '🔴 Медленное соединение ({0} / {1} Мбит/с). Проверьте Wi-Fi/Ethernet, расположение роутера или тариф.',
+    'net.vUploadLow': '⚠ Низкая отдача ({0} Мбит/с): стриминг и демонстрация экрана в Discord пострадают.',
+    'net.speedNote': '💡 Измерено через официальный endpoint Cloudflare — те же серверы, что и speed.cloudflare.com.',
     'common.lang': 'Язык'
   },
   de: {
@@ -1250,6 +1286,15 @@ const STR = {
     'net.dnsSet': 'Wechseln zu {0}',
     'net.dnsAuto': 'Automatisch wiederherstellen (DHCP)',
     'net.dnsAdmin': '⚠ DNS-Wechsel erfordert Adminrechte.',
+    'net.speedSection': '🚀 Geschwindigkeitstest (Download / Upload)',
+    'net.speedRun': 'Speedtest starten',
+    'net.down': 'Download',
+    'net.up': 'Upload',
+    'net.vExcellent': '✅ Exzellente Verbindung: {0} Mbps down / {1} Mbps up — perfekt für Gaming, Streaming und große Downloads.',
+    'net.vGood': '🟡 Ordentliche Verbindung ({0} / {1} Mbps). Fürs Gaming ok; große Spiele-Downloads dauern.',
+    'net.vWeak': '🔴 Langsame Verbindung ({0} / {1} Mbps). Prüfe WLAN vs. Ethernet, Routerposition oder deinen Tarif.',
+    'net.vUploadLow': '⚠ Upload ist niedrig ({0} Mbps): Streaming und Discord-Bildschirmübertragung leiden.',
+    'net.speedNote': '💡 Gemessen gegen den offiziellen Cloudflare-Endpunkt — dieselben Server wie speed.cloudflare.com.',
     'common.lang': 'Sprache'
   },
   pt: {
@@ -1496,6 +1541,15 @@ const STR = {
     'net.dnsSet': 'Mudar para {0}',
     'net.dnsAuto': 'Restaurar automático (DHCP)',
     'net.dnsAdmin': '⚠ Trocar o DNS exige executar o app como administrador.',
+    'net.speedSection': '🚀 Teste de velocidade (download / upload)',
+    'net.speedRun': 'Rodar teste de velocidade',
+    'net.down': 'Download',
+    'net.up': 'Upload',
+    'net.vExcellent': '✅ Conexão excelente: {0} Mbps down / {1} Mbps up — perfeita para jogos, streaming e grandes downloads.',
+    'net.vGood': '🟡 Conexão razoável ({0} / {1} Mbps). Boa para jogar; downloads grandes vão demorar.',
+    'net.vWeak': '🔴 Conexão lenta ({0} / {1} Mbps). Verifique Wi-Fi vs Ethernet, posição do roteador ou seu plano.',
+    'net.vUploadLow': '⚠ Upload baixo ({0} Mbps): streaming e compartilhamento de tela no Discord vão sofrer.',
+    'net.speedNote': '💡 Medido no endpoint oficial da Cloudflare — os mesmos servidores do speed.cloudflare.com.',
     'common.lang': 'Idioma'
   },
   it: {
@@ -1742,6 +1796,15 @@ const STR = {
     'net.dnsSet': 'Passa a {0}',
     'net.dnsAuto': 'Ripristina automatico (DHCP)',
     'net.dnsAdmin': '⚠ Cambiare DNS richiede l\u2019app come amministratore.',
+    'net.speedSection': '🚀 Test di velocità (download / upload)',
+    'net.speedRun': 'Avvia test di velocità',
+    'net.down': 'Download',
+    'net.up': 'Upload',
+    'net.vExcellent': '✅ Connessione eccellente: {0} Mbps down / {1} Mbps up — perfetta per gaming, streaming e grossi download.',
+    'net.vGood': '🟡 Connessione discreta ({0} / {1} Mbps). Va bene per giocare; i grossi download richiederanno tempo.',
+    'net.vWeak': '🔴 Connessione lenta ({0} / {1} Mbps). Controlla Wi-Fi vs Ethernet, posizione del router o il tuo piano.',
+    'net.vUploadLow': '⚠ Upload basso ({0} Mbps): streaming e condivisione schermo su Discord ne soffriranno.',
+    'net.speedNote': '💡 Misurato sull\u2019endpoint ufficiale Cloudflare — gli stessi server di speed.cloudflare.com.',
     'common.lang': 'Lingua'
   }
 } as const

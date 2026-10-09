@@ -39,6 +39,7 @@ function Shell(): React.JSX.Element {
 
   return (
     <>
+      <div className="titlebar">⚒ Pkaizen Forge</div>
       <aside className="sidebar">
         <div className="logo">⚒ Pkaizen Forge</div>
         <div className="lang-switch">

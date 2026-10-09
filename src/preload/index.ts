@@ -46,6 +46,12 @@ const api = {
   pingTest: () => ipcRenderer.invoke('net:ping'),
   dnsBench: () => ipcRenderer.invoke('net:dns'),
   setDns: (preset: string) => ipcRenderer.invoke('net:setDns', preset),
+  speedTest: () => ipcRenderer.invoke('net:speedtest'),
+  onSpeedProgress: (cb: (p: { phase: 'down' | 'up'; mbps: number; percent: number }) => void) => {
+    const listener = (_e: unknown, p: { phase: 'down' | 'up'; mbps: number; percent: number }): void => cb(p)
+    ipcRenderer.on('net:speedProgress', listener)
+    return () => ipcRenderer.removeListener('net:speedProgress', listener)
+  },
   getBrowserReport: () => ipcRenderer.invoke('browser:report'),
   installBrowser: (id: string) => ipcRenderer.invoke('browser:install', id),
   generateReport: () => ipcRenderer.invoke('report:generate'),

@@ -196,6 +196,11 @@ export interface DnsBench {
   ms: number | null
 }
 
+export interface SpeedResult {
+  downMbps: number | null
+  upMbps: number | null
+}
+
 export interface BrowserReport {
   defaultBrowser: string | null
   installed: string[]

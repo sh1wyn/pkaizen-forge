@@ -1,7 +1,7 @@
 import { psJson, ps, asArray } from './powershell'
 import si from 'systeminformation'
 import { T } from './i18n'
-import type { PingResult, NetInfo, DnsBench, ActionResult } from '../../shared/types'
+import type { PingResult, NetInfo, DnsBench, ActionResult, SpeedResult } from '../../shared/types'
 
 export async function getNetInfo(): Promise<NetInfo> {
   const [ifaces, def, gw] = await Promise.all([
@@ -102,9 +102,7 @@ const DNS_PRESETS: Record<string, string[] | null> = {
 }
 
 /** Change le DNS de l'interface par défaut en 1 clic (admin requis). */
-export async function setDns(preset: string): Promise<ActionResult> {
-  if (!(preset in DNS_PRESETS)) return { ok: false, message: 'Unknown preset.' }
-  const servers = DNS_PRESETS[preset]
+export async function setDns(preset: string): Promise<ActionResult> {  const servers = DNS_PRESETS[preset]
   try {
     const script = `
       $idx = (Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop | Sort-Object RouteMetric | Select-Object -First 1).InterfaceIndex
@@ -134,4 +132,66 @@ export async function setDns(preset: string): Promise<ActionResult> {
       message: T('Failed (admin required): ', 'Échec (admin requis) : ') + (e as Error).message
     }
   }
+}
+
+/* ------------------------------------------------------------- */
+/*  Speedtest réel via l'endpoint officiel Cloudflare (speed.cloudflare.com) */
+/* ------------------------------------------------------------- */
+
+const DOWN_BYTES = 200_000_000
+const DOWN_MAX_MS = 10_000
+const UP_BYTES = 25_000_000
+
+export async function speedTest(
+  onProgress: (phase: 'down' | 'up', mbps: number, percent: number) => void
+): Promise<SpeedResult> {
+  let downMbps: number | null = null
+  let upMbps: number | null = null
+
+  try {
+    const ctrl = new AbortController()
+    const started = performance.now()
+    let received = 0
+    const res = await fetch(`https://speed.cloudflare.com/__down?bytes=${DOWN_BYTES}`, { signal: ctrl.signal })
+    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
+    const reader = (res.body as ReadableStream<Uint8Array>).getReader()
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        received += value?.length ?? 0
+        const elapsed = performance.now() - started
+        const mbps = (received * 8) / (elapsed / 1000) / 1e6
+        onProgress('down', Math.round(mbps * 10) / 10, Math.min(100, Math.round((elapsed / DOWN_MAX_MS) * 100)))
+        if (elapsed > DOWN_MAX_MS) {
+          ctrl.abort()
+          break
+        }
+      }
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') throw e
+    }
+    const downMs = Math.min(performance.now() - started, DOWN_MAX_MS)
+    if (received > 0) downMbps = Math.round(((received * 8) / (downMs / 1000) / 1e6) * 10) / 10
+  } catch {
+    downMbps = null
+  }
+
+  try {
+    onProgress('up', 0, 0)
+    const payload = Buffer.alloc(UP_BYTES, 0x50)
+    const t1 = performance.now()
+    await fetch('https://speed.cloudflare.com/__up', {
+      method: 'POST',
+      body: payload,
+      headers: { 'Content-Type': 'application/octet-stream' }
+    })
+    const upMs = performance.now() - t1
+    upMbps = Math.round(((UP_BYTES * 8) / (upMs / 1000) / 1e6) * 10) / 10
+    onProgress('up', upMbps, 100)
+  } catch {
+    upMbps = null
+  }
+
+  return { downMbps, upMbps }
 }

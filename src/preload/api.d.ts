@@ -22,7 +22,8 @@ import type {
   TweakRelevance,
   DiskBenchResult,
   DetailedInfo,
-  BrowserReport
+  BrowserReport,
+  SpeedResult
 } from '../shared/types'
 
 declare global {
@@ -69,6 +70,8 @@ declare global {
       pingTest: () => Promise<PingResult[]>
       dnsBench: () => Promise<DnsBench[]>
       setDns: (preset: string) => Promise<ActionResult>
+      speedTest: () => Promise<SpeedResult>
+      onSpeedProgress: (cb: (p: { phase: 'down' | 'up'; mbps: number; percent: number }) => void) => () => void
       getBrowserReport: () => Promise<BrowserReport>
       installBrowser: (id: string) => Promise<ActionResult>
       generateReport: () => Promise<ActionResult & { path?: string }>

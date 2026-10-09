@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { NetInfo, PingResult, DnsBench } from '../../../shared/types'
+import type { NetInfo, PingResult, DnsBench, SpeedResult } from '../../../shared/types'
 import { useI18n } from '../lib/i18n'
 import { useToast } from '../components/Toast'
 
@@ -15,6 +15,9 @@ export default function Network({ isAdmin }: { isAdmin: boolean }): React.JSX.El
   const { t } = useI18n()
   const [info, setInfo] = useState<NetInfo | null>(null)
   const [dnsBusy, setDnsBusy] = useState<string | null>(null)
+  const [speed, setSpeed] = useState<SpeedResult | null>(null)
+  const [speedBusy, setSpeedBusy] = useState(false)
+  const [liveSpeed, setLiveSpeed] = useState<{ phase: 'down' | 'up'; mbps: number; percent: number } | null>(null)
   const [pings, setPings] = useState<PingResult[] | null>(null)
   const [dns, setDns] = useState<DnsBench[] | null>(null)
   const [testing, setTesting] = useState(false)
@@ -22,7 +25,22 @@ export default function Network({ isAdmin }: { isAdmin: boolean }): React.JSX.El
 
   useEffect(() => {
     window.api.getNetInfo().then(setInfo)
+    const off = window.api.onSpeedProgress(setLiveSpeed)
+    return off
   }, [])
+
+  const runSpeed = async (): Promise<void> => {
+    setSpeedBusy(true)
+    setSpeed(null)
+    setLiveSpeed(null)
+    try {
+      setSpeed(await window.api.speedTest())
+    } catch {
+      toast(t('net.error'), 'error')
+    }
+    setSpeedBusy(false)
+    setLiveSpeed(null)
+  }
 
   const runTest = async (): Promise<void> => {
     setTesting(true)
@@ -69,6 +87,51 @@ export default function Network({ isAdmin }: { isAdmin: boolean }): React.JSX.El
       )}
 
       {info?.type === 'Wi-Fi' && <div className="banner warn">{t('net.wifiWarn')}</div>}
+
+      <div className="section-title">{t('net.speedSection')}</div>
+      <div className="toolbar">
+        <button className="btn primary" disabled={speedBusy} onClick={runSpeed}>
+          {speedBusy ? <span className="spinner" /> : '🚀'} {t('net.speedRun')}
+        </button>
+        {speedBusy && liveSpeed && (
+          <span className="muted">
+            {liveSpeed.phase === 'down' ? '⬇' : '⬆'} {liveSpeed.mbps} Mbps… ({liveSpeed.percent}%)
+          </span>
+        )}
+      </div>
+      {(speed || (speedBusy && liveSpeed)) && (
+        <div className="grid" style={{ marginBottom: 14 }}>
+          <div className="card stagger">
+            <h3>⬇ {t('net.down')}</h3>
+            <div className="score-num" style={{ fontSize: 42 }}>
+              {speed?.downMbps ?? (liveSpeed?.phase === 'down' ? liveSpeed.mbps : '…')}
+            </div>
+            <div className="sub">Mbps</div>
+          </div>
+          <div className="card stagger">
+            <h3>⬆ {t('net.up')}</h3>
+            <div className="score-num" style={{ fontSize: 42 }}>
+              {speed?.upMbps ?? (liveSpeed?.phase === 'up' ? liveSpeed.mbps : '…')}
+            </div>
+            <div className="sub">Mbps</div>
+          </div>
+        </div>
+      )}
+      {speed && speed.downMbps != null && (
+        <>
+          <div
+            className={`banner ${speed.downMbps >= 100 ? 'ok' : speed.downMbps >= 25 ? 'info' : 'warn'}`}
+          >
+            {speed.downMbps >= 100
+              ? t('net.vExcellent', speed.downMbps, speed.upMbps ?? '?')
+              : speed.downMbps >= 25
+                ? t('net.vGood', speed.downMbps, speed.upMbps ?? '?')
+                : t('net.vWeak', speed.downMbps, speed.upMbps ?? '?')}
+          </div>
+          {speed.upMbps != null && speed.upMbps < 10 && <div className="banner warn">{t('net.vUploadLow', speed.upMbps)}</div>}
+          <div className="banner info">{t('net.speedNote')}</div>
+        </>
+      )}
 
       <div className="toolbar">
         <button className="btn primary" disabled={testing} onClick={runTest}>
