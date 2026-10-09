@@ -14,6 +14,8 @@ import {
   getComponentChecklist
 } from './system/drivers'
 import { getStartupItems, setStartupEnabled } from './system/startup'
+import { getNetInfo, pingTest, dnsBench } from './system/network'
+import { generateReport } from './system/report'
 import {
   searchDriverUpdates,
   installDriverUpdates,
@@ -125,6 +127,11 @@ function registerIpc(): void {
 
   ipcMain.handle('startup:list', () => getStartupItems())
   ipcMain.handle('startup:set', (_e, name: string, enable: boolean) => setStartupEnabled(name, enable))
+
+  ipcMain.handle('net:info', () => getNetInfo())
+  ipcMain.handle('net:ping', () => pingTest())
+  ipcMain.handle('net:dns', () => dnsBench())
+  ipcMain.handle('report:generate', () => generateReport())
 
   ipcMain.handle('shell:open', (_e, url: string) => {
     if (url.startsWith('https://') || url.startsWith('ms-settings:')) shell.openExternal(url)

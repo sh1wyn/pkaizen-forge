@@ -31,6 +31,11 @@ const api = {
   getStartupItems: () => ipcRenderer.invoke('startup:list'),
   setStartupEnabled: (name: string, enable: boolean) => ipcRenderer.invoke('startup:set', name, enable),
 
+  getNetInfo: () => ipcRenderer.invoke('net:info'),
+  pingTest: () => ipcRenderer.invoke('net:ping'),
+  dnsBench: () => ipcRenderer.invoke('net:dns'),
+  generateReport: () => ipcRenderer.invoke('report:generate'),
+
   openExternal: (url: string) => ipcRenderer.invoke('shell:open', url)
 }
 

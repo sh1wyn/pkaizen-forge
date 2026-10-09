@@ -15,7 +15,10 @@ import type {
   Insight,
   GpuDriverStatus,
   ProblemDevice,
-  ComponentCheck
+  ComponentCheck,
+  PingResult,
+  NetInfo,
+  DnsBench
 } from '../shared/types'
 
 declare global {
@@ -50,6 +53,11 @@ declare global {
 
       getStartupItems: () => Promise<StartupItem[]>
       setStartupEnabled: (name: string, enable: boolean) => Promise<ActionResult>
+
+      getNetInfo: () => Promise<NetInfo>
+      pingTest: () => Promise<PingResult[]>
+      dnsBench: () => Promise<DnsBench[]>
+      generateReport: () => Promise<ActionResult & { path?: string }>
 
       openExternal: (url: string) => Promise<void>
     }

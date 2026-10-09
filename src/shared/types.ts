@@ -174,6 +174,28 @@ export interface Insight {
   action?: { label: string; url: string }
 }
 
+export interface PingResult {
+  host: string
+  label: string
+  avgMs: number | null
+  minMs: number | null
+  maxMs: number | null
+  jitterMs: number | null
+  loss: number
+}
+
+export interface NetInfo {
+  iface: string
+  type: string
+  speedMbps: number | null
+  gateway: string | null
+}
+
+export interface DnsBench {
+  server: string
+  ms: number | null
+}
+
 export interface ActionResult {
   ok: boolean
   message?: string

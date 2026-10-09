@@ -5,15 +5,19 @@ import Optimize from './pages/Optimize'
 import Clean from './pages/Clean'
 import Drivers from './pages/Drivers'
 import Startup from './pages/Startup'
+import Network from './pages/Network'
+import Report from './pages/Report'
 
-type Page = 'dashboard' | 'optimize' | 'clean' | 'drivers' | 'startup'
+type Page = 'dashboard' | 'optimize' | 'clean' | 'drivers' | 'startup' | 'network' | 'report'
 
 const NAV: { id: Page; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Diagnostic', icon: '📊' },
   { id: 'optimize', label: 'Optimiser', icon: '⚡' },
   { id: 'clean', label: 'Nettoyage', icon: '🧹' },
   { id: 'drivers', label: 'Pilotes', icon: '🔧' },
-  { id: 'startup', label: 'Démarrage', icon: '🚀' }
+  { id: 'startup', label: 'Démarrage', icon: '🚀' },
+  { id: 'network', label: 'Réseau', icon: '🌐' },
+  { id: 'report', label: 'Rapport', icon: '📋' }
 ]
 
 export default function App(): React.JSX.Element {
@@ -60,6 +64,8 @@ export default function App(): React.JSX.Element {
           {page === 'clean' && <Clean isAdmin={isAdmin} />}
           {page === 'drivers' && <Drivers isAdmin={isAdmin} />}
           {page === 'startup' && <Startup />}
+          {page === 'network' && <Network />}
+          {page === 'report' && <Report />}
         </div>
       </main>
     </ToastProvider>
