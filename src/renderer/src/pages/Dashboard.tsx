@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { SystemReport, LiveStats, Insight } from '../../../shared/types'
+import type { SystemReport, LiveStats, Insight, DetailedInfo } from '../../../shared/types'
 import { cached } from '../lib/cache'
 import { useToast } from '../components/Toast'
 
@@ -14,11 +14,13 @@ export default function Dashboard(): React.JSX.Element {
   const [report, setReport] = useState<SystemReport | null>(null)
   const [live, setLive] = useState<LiveStats | null>(null)
   const [insights, setInsights] = useState<Insight[] | null>(null)
+  const [details, setDetails] = useState<DetailedInfo | null>(null)
   const toast = useToast()
 
   useEffect(() => {
     cached('report', () => window.api.getSystemReport()).then(setReport).catch(() => toast('Erreur lecture matériel', 'error'))
     cached('insights', () => window.api.getInsights()).then(setInsights).catch(() => setInsights([]))
+    cached('details', () => window.api.getDetailedInfo()).then(setDetails).catch(() => setDetails(null))
     let stop = false
     const poll = async (): Promise<void> => {
       if (document.hidden) return // zéro conso quand la fenêtre est minimisée/cachée
@@ -167,6 +169,89 @@ export default function Dashboard(): React.JSX.Element {
             </div>
           )}
         </div>
+      )}
+
+      {details && (
+        <>
+          <div className="section-title">🔎 Détails avancés</div>
+          <div className="grid">
+            {details.bios && (
+              <div className="card stagger">
+                <h3>BIOS / UEFI</h3>
+                <div className="big">{details.bios.version}</div>
+                <div className="sub">
+                  {details.bios.vendor} · {details.bios.date || 'date inconnue'}
+                  <br />
+                  {details.bios.uefi ? 'UEFI ✓' : 'Legacy BIOS'} · Secure Boot {details.bios.secureBoot ? 'actif ✓' : 'inactif'}
+                  {details.tpm?.present && ` · TPM ${details.tpm.version.split(',')[0]}`}
+                </div>
+              </div>
+            )}
+            {details.windows && (
+              <div className="card stagger">
+                <h3>Windows</h3>
+                <div className="big">
+                  {details.windows.edition} {details.windows.displayVersion}
+                </div>
+                <div className="sub">
+                  Installé le {details.windows.installDate || '—'} · Uptime {details.windows.uptimeHours} h
+                  <br />
+                  Antivirus : {details.windows.antivirus}
+                  <br />
+                  Démarrage rapide {details.windows.fastStartup ? 'actif' : 'inactif'} · Intégrité mémoire (VBS){' '}
+                  {details.windows.hvci ? 'active' : 'inactive'}
+                </div>
+              </div>
+            )}
+            {details.ramSlots.map((r, i) => (
+              <div className="card stagger" key={i}>
+                <h3>RAM — {r.bank}</h3>
+                <div className="big">
+                  {r.sizeGB} Go @ {r.configuredMHz || '?'} MT/s
+                </div>
+                <div className="sub">
+                  {r.maker} {r.part}
+                  <br />
+                  {r.xmpActive === true && <span style={{ color: 'var(--green)' }}>Profil XMP/EXPO actif ✓</span>}
+                  {r.xmpActive === false && (
+                    <span style={{ color: 'var(--orange)' }}>
+                      Tourne à {r.configuredMHz} au lieu de {r.ratedMHz} MT/s — active XMP dans le BIOS !
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {details.diskHealth.map((d, i) => (
+              <div className="card stagger" key={i}>
+                <h3>Santé disque</h3>
+                <div className="big">{d.model}</div>
+                <div className="sub">
+                  État : {d.health}
+                  {d.tempC != null && ` · ${d.tempC}°C`}
+                  {d.powerOnHours != null && ` · ${d.powerOnHours} h d\u2019utilisation`}
+                  {d.wearPercent != null && ` · usure ${d.wearPercent}%`}
+                </div>
+              </div>
+            ))}
+            {details.displays.map((d, i) => (
+              <div className="card stagger" key={i}>
+                <h3>Écran {details.displays.length > 1 ? i + 1 : ''} {d.main ? '(principal)' : ''}</h3>
+                <div className="big">
+                  {d.resX}×{d.resY} @ {d.hz || '?'} Hz
+                </div>
+                <div className="sub">
+                  {d.model} {d.connection && `· ${d.connection}`}
+                  {d.hz > 0 && d.hz <= 60 && (
+                    <>
+                      <br />
+                      <span style={{ color: 'var(--orange)' }}>60 Hz — vérifie si ton écran supporte plus !</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </>
   )

@@ -1,5 +1,5 @@
 import { ps } from './powershell'
-import type { TweakInfo, TweakState, ActionResult } from '../../shared/types'
+import type { TweakInfo, TweakState, ActionResult, TweakRelevance } from '../../shared/types'
 
 interface Tweak extends TweakInfo {
   apply: string
@@ -361,4 +361,119 @@ export async function revertTweak(id: string): Promise<ActionResult> {
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }
+}
+
+/** Évalue l'utilité réelle de chaque tweak SUR CETTE MACHINE précise. */
+export async function getTweakRelevance(): Promise<TweakRelevance[]> {
+  const { getSystemReport } = await import('./sysinfo')
+  const r = await getSystemReport()
+  const lowCpu = r.cpu.physicalCores < 6
+  const lowRam = r.ram.totalGB < 15.5
+  const diskFull = r.volumes.some((v) => v.mount.toUpperCase().startsWith('C') && v.usePercent >= 85)
+  const gpu = r.gpus.map((g) => `${g.vendor} ${g.model}`).join(' ').toLowerCase()
+  const hasModernGpu = /rtx|gtx 1[06-9]|gtx [2-9]|radeon rx [5-9]|arc/i.test(gpu)
+
+  const rel: TweakRelevance[] = [
+    {
+      id: 'power-high',
+      impact: r.isLaptop ? 'medium' : 'high',
+      reason: r.isLaptop
+        ? 'Utile branché sur secteur, mais vide la batterie plus vite — active-le seulement pour jouer.'
+        : 'PC fixe : aucun inconvénient, le CPU reste à pleine fréquence. À activer.'
+    },
+    {
+      id: 'gamedvr-off',
+      impact: lowCpu || lowRam ? 'high' : 'medium',
+      reason:
+        lowCpu || lowRam
+          ? `Sur ta config (${r.cpu.physicalCores} cœurs / ${Math.round(r.ram.totalGB)} Go), l\u2019enregistrement permanent coûte cher — gain réel.`
+          : 'Ta config est costaude, mais c\u2019est toujours quelques % de FPS gratuits si tu ne clippes pas.'
+    },
+    {
+      id: 'gamemode-on',
+      impact: 'high',
+      reason: 'Recommandé sur toutes les configs : priorise le jeu et bloque les MAJ Windows en pleine partie.'
+    },
+    {
+      id: 'hags-on',
+      impact: hasModernGpu ? 'high' : 'low',
+      reason: hasModernGpu
+        ? 'Ton GPU est récent : HAGS réduit la latence de rendu, et il est requis pour la Frame Generation NVIDIA/AMD.'
+        : 'Ton GPU est ancien ou intégré : HAGS peut ne rien apporter, voire être instable. À tester.'
+    },
+    {
+      id: 'mouse-accel-off',
+      impact: 'high',
+      reason: 'Indispensable pour viser dans les FPS — la visée devient reproductible. Aucun coût.'
+    },
+    {
+      id: 'network-latency',
+      impact: 'medium',
+      reason: 'Utile pour le jeu en ligne compétitif : ping plus stable sous charge. Aucun effet hors ligne.'
+    },
+    {
+      id: 'prio-foreground',
+      impact: lowCpu ? 'high' : 'medium',
+      reason: lowCpu
+        ? `Avec ${r.cpu.physicalCores} cœurs, donner la priorité au jeu actif évite les stutters quand un truc tourne derrière.`
+        : 'Ton CPU a de la marge, mais ça aide quand Discord/Chrome tournent en fond.'
+    },
+    {
+      id: 'power-throttling-off',
+      impact: r.isLaptop ? 'low' : 'medium',
+      reason: r.isLaptop
+        ? 'Sur portable ça consomme nettement plus de batterie — déconseillé sauf branché en permanence.'
+        : 'Utile si tu streames/enregistres : OBS et Discord ne sont plus bridés en arrière-plan.'
+    },
+    {
+      id: 'background-apps-off',
+      impact: lowRam || lowCpu ? 'high' : 'low',
+      reason:
+        lowRam || lowCpu
+          ? 'Ta config profite directement de chaque Mo/cycle récupéré sur les applis Store en fond.'
+          : 'Config confortable : le gain existe mais il est marginal chez toi.'
+    },
+    {
+      id: 'stickykeys-hotkey-off',
+      impact: 'medium',
+      reason: 'Zéro perf, 100% confort : plus jamais la popup Shift en pleine partie.'
+    },
+    {
+      id: 'menu-delay',
+      impact: 'low',
+      reason: 'Pur ressenti de réactivité Windows — aucun FPS en jeu, mais agréable au quotidien.'
+    },
+    {
+      id: 'storage-sense',
+      impact: diskFull ? 'high' : 'low',
+      reason: diskFull
+        ? 'Ton disque C: est presque plein — l\u2019assistant stockage va t\u2019éviter les ralentissements du disque saturé.'
+        : 'Ton disque a de la place : utile en prévention, pas urgent.'
+    },
+    {
+      id: 'telemetry-min',
+      impact: lowCpu ? 'medium' : 'low',
+      reason: lowCpu
+        ? 'Moins de tâches de fond = CPU plus dispo sur une petite config.'
+        : 'Gain perf minime sur ta config, surtout une question de préférence vie privée.'
+    },
+    {
+      id: 'hibernate-off',
+      impact: diskFull && !r.isLaptop ? 'high' : 'low',
+      reason: r.isLaptop
+        ? 'Déconseillé sur portable : tu perds la protection batterie faible.'
+        : diskFull
+          ? 'Disque presque plein : récupérer plusieurs Go de hiberfil.sys vaut le coup.'
+          : 'Tu as de la place disque, le gain est accessoire.'
+    },
+    {
+      id: 'visualfx-balanced',
+      impact: lowRam || !hasModernGpu ? 'medium' : 'low',
+      reason:
+        lowRam || !hasModernGpu
+          ? 'Sur ta config, alléger les animations rend le bureau nettement plus réactif.'
+          : 'Ta machine encaisse les animations sans broncher — question de goût.'
+    }
+  ]
+  return rel
 }

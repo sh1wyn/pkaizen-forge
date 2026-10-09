@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { TweakInfo, TweakState, SystemReport } from '../../../shared/types'
+import type { TweakInfo, TweakState, SystemReport, TweakRelevance } from '../../../shared/types'
+import { cached } from '../lib/cache'
 import { useToast } from '../components/Toast'
 
 const CAT_LABEL: Record<string, string> = {
@@ -15,6 +16,7 @@ export default function Optimize({ isAdmin }: { isAdmin: boolean }): React.JSX.E
   const [states, setStates] = useState<Record<string, TweakState>>({})
   const [busy, setBusy] = useState<string | null>(null)
   const [report, setReport] = useState<SystemReport | null>(null)
+  const [relevance, setRelevance] = useState<Record<string, TweakRelevance>>({})
   const [restoreBusy, setRestoreBusy] = useState(false)
   const toast = useToast()
 
@@ -25,7 +27,10 @@ export default function Optimize({ isAdmin }: { isAdmin: boolean }): React.JSX.E
 
   useEffect(() => {
     window.api.listTweaks().then(setTweaks)
-    window.api.getSystemReport().then(setReport)
+    cached('report', () => window.api.getSystemReport()).then(setReport)
+    cached('relevance', () => window.api.getTweakRelevance()).then((r) =>
+      setRelevance(Object.fromEntries(r.map((x) => [x.id, x])))
+    )
     refresh()
   }, [])
 
@@ -121,17 +126,25 @@ export default function Optimize({ isAdmin }: { isAdmin: boolean }): React.JSX.E
             .map((t) => {
               const st = states[t.id]
               const lockedAdmin = t.needsAdmin && !isAdmin
+              const rel = relevance[t.id]
               return (
                 <div className="row stagger" key={t.id}>
                   <div className="row-info">
                     <div className="row-title">
                       {t.name}
-                      {t.recommended && <span className="badge reco">Recommandé</span>}
+                      {rel?.impact === 'high' && <span className="badge okay">Impact élevé sur ta config</span>}
+                      {rel?.impact === 'medium' && <span className="badge reboot">Impact moyen</span>}
+                      {rel?.impact === 'low' && <span className="badge admin">Faible impact chez toi</span>}
                       {t.needsAdmin && <span className="badge admin">Admin</span>}
                       {t.needsReboot && <span className="badge reboot">Redémarrage</span>}
                       {t.laptopWarning && report?.isLaptop && <span className="badge laptop">Batterie</span>}
                     </div>
                     <div className="row-desc">{t.description}</div>
+                    {rel && (
+                      <div className="row-desc" style={{ marginTop: 4, color: 'var(--accent2)' }}>
+                        📌 {rel.reason}
+                      </div>
+                    )}
                   </div>
                   {busy === t.id ? (
                     <span className="spinner" />

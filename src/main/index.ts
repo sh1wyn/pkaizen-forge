@@ -3,7 +3,9 @@ import { join } from 'path'
 import { ps } from './system/powershell'
 import { getSystemReport, getLiveStats } from './system/sysinfo'
 import { getInsights } from './system/analyzer'
-import { listTweaks, getTweakStates, applyTweak, revertTweak } from './system/optimizer'
+import { getDetailedInfo } from './system/details'
+import { listTweaks, getTweakStates, applyTweak, revertTweak, getTweakRelevance } from './system/optimizer'
+import { diskBench } from './system/bench'
 import { previewClean, runClean } from './system/cleaner'
 import {
   scanDrivers,
@@ -28,6 +30,29 @@ import {
 
 let isAdminCached: boolean | null = null
 let mainWin: BrowserWindow | null = null
+
+// Jamais de crash silencieux : on logge et on continue.
+process.on('uncaughtException', (err) => console.error('[Pkaizen] uncaughtException:', err))
+process.on('unhandledRejection', (reason) => console.error('[Pkaizen] unhandledRejection:', reason))
+
+// Spam-proof : un même appel IPC déjà en cours n'est jamais relancé en parallèle.
+const inflight = new Map<string, Promise<unknown>>()
+function handle(channel: string, fn: (e: Electron.IpcMainInvokeEvent, ...args: never[]) => unknown): void {
+  ipcMain.handle(channel, (e, ...args) => {
+    const key = channel + JSON.stringify(args)
+    const existing = inflight.get(key)
+    if (existing) return existing
+    const p = Promise.resolve()
+      .then(() => fn(e, ...(args as never[])))
+      .catch((err) => {
+        console.error(`[Pkaizen] IPC ${channel}:`, err)
+        throw err
+      })
+      .finally(() => inflight.delete(key))
+    inflight.set(key, p)
+    return p
+  })
+}
 
 async function isAdmin(): Promise<boolean> {
   if (isAdminCached != null) return isAdminCached
@@ -63,6 +88,10 @@ function createWindow(): void {
   win.on('closed', () => {
     if (mainWin === win) mainWin = null
   })
+  win.webContents.on('unresponsive', () => console.error('[Pkaizen] renderer unresponsive'))
+  win.webContents.on('render-process-gone', (_e, details) =>
+    console.error('[Pkaizen] renderer gone:', details.reason)
+  )
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) shell.openExternal(url)
@@ -77,12 +106,13 @@ function createWindow(): void {
 }
 
 function registerIpc(): void {
-  ipcMain.handle('system:report', () => getSystemReport())
-  ipcMain.handle('system:live', () => getLiveStats())
-  ipcMain.handle('system:insights', () => getInsights())
-  ipcMain.handle('system:isAdmin', () => isAdmin())
+  handle('system:report', () => getSystemReport())
+  handle('system:live', () => getLiveStats())
+  handle('system:insights', () => getInsights())
+  handle('system:details', () => getDetailedInfo())
+  handle('system:isAdmin', () => isAdmin())
 
-  ipcMain.handle('system:restorePoint', async () => {
+  handle('system:restorePoint', async () => {
     try {
       await ps(
         `Checkpoint-Computer -Description 'Pkaizen Forge avant optimisation' -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop`,
@@ -99,7 +129,7 @@ function registerIpc(): void {
     }
   })
 
-  ipcMain.handle('system:batteryReport', async () => {
+  handle('system:batteryReport', async () => {
     try {
       const path = await ps(
         `$p = Join-Path $env:TEMP 'pkaizen-battery.html'; powercfg /batteryreport /output $p | Out-Null; $p`,
@@ -112,39 +142,41 @@ function registerIpc(): void {
     }
   })
 
-  ipcMain.handle('tweaks:list', () => listTweaks())
-  ipcMain.handle('tweaks:states', () => getTweakStates())
-  ipcMain.handle('tweaks:apply', (_e, id: string) => applyTweak(id))
-  ipcMain.handle('tweaks:revert', (_e, id: string) => revertTweak(id))
+  handle('tweaks:list', () => listTweaks())
+  handle('tweaks:states', () => getTweakStates())
+  handle('tweaks:apply', (_e, id: string) => applyTweak(id))
+  handle('tweaks:revert', (_e, id: string) => revertTweak(id))
+  handle('tweaks:relevance', () => getTweakRelevance())
+  handle('bench:disk', () => diskBench())
 
-  ipcMain.handle('clean:preview', () => previewClean())
-  ipcMain.handle('clean:run', (_e, ids: string[]) => runClean(ids))
+  handle('clean:preview', () => previewClean())
+  handle('clean:run', (_e, ids: string[]) => runClean(ids))
 
-  ipcMain.handle('drivers:scan', () => scanDrivers())
-  ipcMain.handle('drivers:winget', () => getWingetUpgrades())
-  ipcMain.handle('drivers:links', () => getVendorLinks())
-  ipcMain.handle('drivers:gpuStatus', () => getGpuDriverStatus())
-  ipcMain.handle('drivers:problems', () => getProblemDevices())
-  ipcMain.handle('drivers:checklist', () => getComponentChecklist())
-  ipcMain.handle('drivers:wuSearch', () => searchDriverUpdates())
-  ipcMain.handle('drivers:wuInstall', (_e, ids: string[]) => installDriverUpdates(ids))
-  ipcMain.handle('drivers:wingetUpgrade', (_e, id: string) => wingetUpgradePackage(id))
-  ipcMain.handle('drivers:installNvidia', (e, url: string) =>
+  handle('drivers:scan', () => scanDrivers())
+  handle('drivers:winget', () => getWingetUpgrades())
+  handle('drivers:links', () => getVendorLinks())
+  handle('drivers:gpuStatus', () => getGpuDriverStatus())
+  handle('drivers:problems', () => getProblemDevices())
+  handle('drivers:checklist', () => getComponentChecklist())
+  handle('drivers:wuSearch', () => searchDriverUpdates())
+  handle('drivers:wuInstall', (_e, ids: string[]) => installDriverUpdates(ids))
+  handle('drivers:wingetUpgrade', (_e, id: string) => wingetUpgradePackage(id))
+  handle('drivers:installNvidia', (e, url: string) =>
     downloadAndRunNvidiaInstaller(url, (p) => e.sender.send('drivers:nvidiaProgress', p))
   )
-  ipcMain.handle('drivers:installIntelDsa', () => installIntelDsa())
-  ipcMain.handle('system:reboot', () => rebootNow())
-  ipcMain.handle('system:pendingReboot', () => checkPendingReboot())
+  handle('drivers:installIntelDsa', () => installIntelDsa())
+  handle('system:reboot', () => rebootNow())
+  handle('system:pendingReboot', () => checkPendingReboot())
 
-  ipcMain.handle('startup:list', () => getStartupItems())
-  ipcMain.handle('startup:set', (_e, name: string, enable: boolean) => setStartupEnabled(name, enable))
+  handle('startup:list', () => getStartupItems())
+  handle('startup:set', (_e, name: string, enable: boolean) => setStartupEnabled(name, enable))
 
-  ipcMain.handle('net:info', () => getNetInfo())
-  ipcMain.handle('net:ping', () => pingTest())
-  ipcMain.handle('net:dns', () => dnsBench())
-  ipcMain.handle('report:generate', () => generateReport())
+  handle('net:info', () => getNetInfo())
+  handle('net:ping', () => pingTest())
+  handle('net:dns', () => dnsBench())
+  handle('report:generate', () => generateReport())
 
-  ipcMain.handle('shell:open', (_e, url: string) => {
+  handle('shell:open', (_e, url: string) => {
     if (url.startsWith('https://') || url.startsWith('ms-settings:')) shell.openExternal(url)
   })
 }

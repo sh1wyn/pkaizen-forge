@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ToastProvider } from './components/Toast'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import Dashboard from './pages/Dashboard'
 import Optimize from './pages/Optimize'
 import Clean from './pages/Clean'
@@ -7,12 +8,14 @@ import Drivers from './pages/Drivers'
 import Startup from './pages/Startup'
 import Network from './pages/Network'
 import Report from './pages/Report'
+import Benchmark from './pages/Benchmark'
 
-type Page = 'dashboard' | 'optimize' | 'clean' | 'drivers' | 'startup' | 'network' | 'report'
+type Page = 'dashboard' | 'optimize' | 'clean' | 'drivers' | 'startup' | 'network' | 'report' | 'benchmark'
 
 const NAV: { id: Page; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Diagnostic', icon: '📊' },
   { id: 'optimize', label: 'Optimiser', icon: '⚡' },
+  { id: 'benchmark', label: 'Benchmark', icon: '🧪' },
   { id: 'clean', label: 'Nettoyage', icon: '🧹' },
   { id: 'drivers', label: 'Pilotes', icon: '🔧' },
   { id: 'startup', label: 'Démarrage', icon: '🚀' },
@@ -59,13 +62,16 @@ export default function App(): React.JSX.Element {
               </button>
             </div>
           )}
-          {page === 'dashboard' && <Dashboard />}
-          {page === 'optimize' && <Optimize isAdmin={isAdmin} />}
-          {page === 'clean' && <Clean isAdmin={isAdmin} />}
-          {page === 'drivers' && <Drivers isAdmin={isAdmin} />}
-          {page === 'startup' && <Startup />}
-          {page === 'network' && <Network />}
-          {page === 'report' && <Report />}
+          <ErrorBoundary key={page}>
+            {page === 'dashboard' && <Dashboard />}
+            {page === 'optimize' && <Optimize isAdmin={isAdmin} />}
+            {page === 'clean' && <Clean isAdmin={isAdmin} />}
+            {page === 'drivers' && <Drivers isAdmin={isAdmin} />}
+            {page === 'startup' && <Startup />}
+            {page === 'network' && <Network />}
+            {page === 'report' && <Report />}
+            {page === 'benchmark' && <Benchmark />}
+          </ErrorBoundary>
         </div>
       </main>
     </ToastProvider>

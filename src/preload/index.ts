@@ -4,6 +4,7 @@ const api = {
   getSystemReport: () => ipcRenderer.invoke('system:report'),
   getLiveStats: () => ipcRenderer.invoke('system:live'),
   getInsights: () => ipcRenderer.invoke('system:insights'),
+  getDetailedInfo: () => ipcRenderer.invoke('system:details'),
   isAdmin: () => ipcRenderer.invoke('system:isAdmin'),
   createRestorePoint: () => ipcRenderer.invoke('system:restorePoint'),
   openBatteryReport: () => ipcRenderer.invoke('system:batteryReport'),
@@ -12,6 +13,8 @@ const api = {
   getTweakStates: () => ipcRenderer.invoke('tweaks:states'),
   applyTweak: (id: string) => ipcRenderer.invoke('tweaks:apply', id),
   revertTweak: (id: string) => ipcRenderer.invoke('tweaks:revert', id),
+  getTweakRelevance: () => ipcRenderer.invoke('tweaks:relevance'),
+  diskBench: () => ipcRenderer.invoke('bench:disk'),
 
   previewClean: () => ipcRenderer.invoke('clean:preview'),
   runClean: (ids: string[]) => ipcRenderer.invoke('clean:run', ids),

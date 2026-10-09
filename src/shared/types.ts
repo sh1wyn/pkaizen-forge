@@ -196,6 +196,50 @@ export interface DnsBench {
   ms: number | null
 }
 
+export interface TweakRelevance {
+  id: string
+  impact: 'high' | 'medium' | 'low'
+  reason: string
+}
+
+export interface DiskBenchResult {
+  writeMBps: number
+  readMBps: number
+  sizeMB: number
+}
+
+export interface DetailedInfo {
+  bios: { vendor: string; version: string; date: string; uefi: boolean; secureBoot: boolean } | null
+  tpm: { present: boolean; version: string } | null
+  windows: {
+    edition: string
+    displayVersion: string
+    build: string
+    installDate: string
+    fastStartup: boolean
+    hvci: boolean
+    antivirus: string
+    uptimeHours: number
+  } | null
+  ramSlots: {
+    bank: string
+    maker: string
+    part: string
+    sizeGB: number
+    configuredMHz: number
+    ratedMHz: number
+    xmpActive: boolean | null
+  }[]
+  diskHealth: {
+    model: string
+    health: string
+    tempC: number | null
+    powerOnHours: number | null
+    wearPercent: number | null
+  }[]
+  displays: { model: string; main: boolean; resX: number; resY: number; hz: number; connection: string }[]
+}
+
 export interface ActionResult {
   ok: boolean
   message?: string

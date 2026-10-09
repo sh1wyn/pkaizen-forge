@@ -18,7 +18,10 @@ import type {
   ComponentCheck,
   PingResult,
   NetInfo,
-  DnsBench
+  DnsBench,
+  TweakRelevance,
+  DiskBenchResult,
+  DetailedInfo
 } from '../shared/types'
 
 declare global {
@@ -27,6 +30,7 @@ declare global {
       getSystemReport: () => Promise<SystemReport>
       getLiveStats: () => Promise<LiveStats>
       getInsights: () => Promise<Insight[]>
+      getDetailedInfo: () => Promise<DetailedInfo>
       isAdmin: () => Promise<boolean>
       createRestorePoint: () => Promise<ActionResult>
       openBatteryReport: () => Promise<ActionResult>
@@ -35,6 +39,8 @@ declare global {
       getTweakStates: () => Promise<TweakState[]>
       applyTweak: (id: string) => Promise<ActionResult>
       revertTweak: (id: string) => Promise<ActionResult>
+      getTweakRelevance: () => Promise<TweakRelevance[]>
+      diskBench: () => Promise<DiskBenchResult>
 
       previewClean: () => Promise<CleanTarget[]>
       runClean: (ids: string[]) => Promise<CleanResult[]>
