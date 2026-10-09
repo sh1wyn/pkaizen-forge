@@ -2,24 +2,35 @@ import { execFile } from 'child_process'
 
 const PRELUDE = `(Get-Process -Id $PID).PriorityClass='BelowNormal';$ErrorActionPreference='SilentlyContinue';[Console]::OutputEncoding=[Text.Encoding]::UTF8;`
 
-// Max 2 PowerShell simultanés : évite de saturer les petits CPU (freeze du PC).
-const MAX_CONCURRENT = 2
+const MAX_CONCURRENT = 1
 let running = 0
 const waiters: (() => void)[] = []
 
 async function acquire(): Promise<void> {
-  if (running >= MAX_CONCURRENT) await new Promise<void>((r) => waiters.push(r))
-  running++
+  if (running >= MAX_CONCURRENT) {
+    await new Promise<void>((resolve) => waiters.push(resolve))
+  } else {
+    running++
+  }
 }
 
 function release(): void {
-  running--
-  waiters.shift()?.()
+  const next = waiters.shift()
+  if (next) next()
+  else running--
+}
+
+export async function runSystemTask<Result>(task: () => Promise<Result>): Promise<Result> {
+  await acquire()
+  try {
+    return await task()
+  } finally {
+    release()
+  }
 }
 
 export async function ps(script: string, timeoutMs = 60000): Promise<string> {
-  await acquire()
-  try {
+  return runSystemTask(async () => {
     const encoded = Buffer.from(PRELUDE + script, 'utf16le').toString('base64')
     return await new Promise((resolve, reject) => {
       execFile(
@@ -32,9 +43,7 @@ export async function ps(script: string, timeoutMs = 60000): Promise<string> {
         }
       )
     })
-  } finally {
-    release()
-  }
+  })
 }
 
 export async function psJson<T>(script: string, timeoutMs = 60000): Promise<T | null> {

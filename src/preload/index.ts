@@ -19,6 +19,7 @@ const api = {
   revertTweak: (id: string) => ipcRenderer.invoke('tweaks:revert', id),
   getTweakRelevance: () => ipcRenderer.invoke('tweaks:relevance'),
   diskBench: () => ipcRenderer.invoke('bench:disk'),
+  cancelDiskBench: () => ipcRenderer.invoke('bench:cancel'),
 
   previewClean: () => ipcRenderer.invoke('clean:preview'),
   runClean: (ids: string[]) => ipcRenderer.invoke('clean:run', ids),

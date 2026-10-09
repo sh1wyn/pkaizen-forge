@@ -36,19 +36,24 @@ function Shell(): React.JSX.Element {
   const [updBusy, setUpdBusy] = useState(false)
 
   useEffect(() => {
-    window.api.isAdmin().then(setIsAdmin)
-    window.api.checkPendingReboot().then(setPendingReboot)
-    window.api.getVersion().then(setVersion)
+    window.api.isAdmin().then(setIsAdmin).catch(() => setIsAdmin(false))
+    window.api.checkPendingReboot().then(setPendingReboot).catch(() => setPendingReboot(false))
+    window.api.getVersion().then(setVersion).catch(() => undefined)
   }, [])
 
   const checkUpdates = async (): Promise<void> => {
     setUpdBusy(true)
-    const r = await window.api.checkUpdates()
-    if (r.status === 'uptodate') toast(t('app.upToDate', r.current), 'success')
-    else if (r.status === 'available') toast(t('app.updateFound', r.newVersion ?? ''), 'info')
-    else if (r.status === 'dev') toast(t('app.updateDev'), 'info')
-    else toast(r.message || 'Update check failed', 'error')
-    setUpdBusy(false)
+    try {
+      const result = await window.api.checkUpdates()
+      if (result.status === 'uptodate') toast(t('app.upToDate', result.current), 'success')
+      else if (result.status === 'available') toast(t('app.updateFound', result.newVersion ?? ''), 'info')
+      else if (result.status === 'dev') toast(t('app.updateDev'), 'info')
+      else toast(result.message || 'Update check failed', 'error')
+    } catch (error) {
+      toast(String(error), 'error')
+    } finally {
+      setUpdBusy(false)
+    }
   }
 
   return (

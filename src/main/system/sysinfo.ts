@@ -1,23 +1,36 @@
-import si from 'systeminformation'
+import si from './hardware'
+import { cpus, freemem, totalmem } from 'os'
 import type { SystemReport, LiveStats } from '../../shared/types'
 
 const toGB = (b: number): number => Math.round((b / 1024 ** 3) * 10) / 10
 
-export async function getSystemReport(): Promise<SystemReport> {
-  const [cpu, graphics, mem, memLayout, osInfo, diskLayout, fsSize, battery, baseboard, system, chassis] =
-    await Promise.all([
-      si.cpu(),
-      si.graphics(),
-      si.mem(),
-      si.memLayout(),
-      si.osInfo(),
-      si.diskLayout(),
-      si.fsSize(),
-      si.battery(),
-      si.baseboard(),
-      si.system(),
-      si.chassis()
-    ])
+let reportCache: { value: SystemReport; expires: number } | null = null
+let reportPending: Promise<SystemReport> | null = null
+
+export function getSystemReport(): Promise<SystemReport> {
+  if (reportCache && Date.now() < reportCache.expires) return Promise.resolve(reportCache.value)
+  if (reportPending) return reportPending
+  reportPending = collectSystemReport()
+    .then((value) => {
+      reportCache = { value, expires: Date.now() + 300_000 }
+      return value
+    })
+    .finally(() => { reportPending = null })
+  return reportPending
+}
+
+async function collectSystemReport(): Promise<SystemReport> {
+  const cpu = await si.cpu()
+  const graphics = await si.graphics()
+  const mem = { total: totalmem() }
+  const memLayout = await si.memLayout()
+  const osInfo = await si.osInfo()
+  const diskLayout = await si.diskLayout()
+  const fsSize = await si.fsSize()
+  const battery = await si.battery()
+  const baseboard = await si.baseboard()
+  const system = await si.system()
+  const chassis = await si.chassis()
 
   const laptopTypes = ['notebook', 'laptop', 'portable', 'sub notebook', 'convertible', 'detachable', 'tablet']
   const isLaptop =
@@ -83,64 +96,30 @@ export async function getSystemReport(): Promise<SystemReport> {
   }
 }
 
+let previousCpu = cpus()
+
 export async function getLiveStats(): Promise<LiveStats> {
-  // Léger : pas de WMI graphics à chaque poll — nvidia-smi direct si dispo, sinon rien.
-  const [load, mem] = await Promise.all([si.currentLoad(), si.mem()])
-  const gpu = await getGpuLive()
-  const cpuTemp = await getCpuTempThrottled()
-  return {
-    cpuLoad: Math.round(load.currentLoad),
-    memUsedGB: toGB(mem.active),
-    memTotalGB: toGB(mem.total),
-    memPercent: Math.round((mem.active / mem.total) * 100),
-    cpuTemp,
-    gpuLoad: gpu.load,
-    gpuTemp: gpu.temp
-  }
-}
-
-let hasNvidiaSmi: boolean | null = null
-let gpuTick = 0
-let lastGpu: { load: number | null; temp: number | null } = { load: null, temp: null }
-
-async function getGpuLive(): Promise<{ load: number | null; temp: number | null }> {
-  if (hasNvidiaSmi === false) return { load: null, temp: null }
-  // 1 spawn nvidia-smi sur 2 : moitié moins de processus pendant le polling live.
-  if (gpuTick++ % 2 !== 0) return lastGpu
-  try {
-    const { execFile } = await import('child_process')
-    const out = await new Promise<string>((resolve, reject) => {
-      execFile(
-        'nvidia-smi',
-        ['--query-gpu=utilization.gpu,temperature.gpu', '--format=csv,noheader,nounits'],
-        { timeout: 4000, windowsHide: true },
-        (err, stdout) => (err ? reject(err) : resolve(stdout))
-      )
+  const currentCpu = cpus()
+  let idleDelta = 0
+  let totalDelta = 0
+  if (currentCpu.length === previousCpu.length) {
+    currentCpu.forEach((cpu, index) => {
+      const previous = previousCpu[index].times
+      idleDelta += cpu.times.idle - previous.idle
+      totalDelta += Object.values(cpu.times).reduce((sum, value) => sum + value, 0) -
+        Object.values(previous).reduce((sum, value) => sum + value, 0)
     })
-    hasNvidiaSmi = true
-    const [load, temp] = out.trim().split(',').map((s) => parseInt(s.trim(), 10))
-    lastGpu = { load: Number.isNaN(load) ? null : load, temp: Number.isNaN(temp) ? null : temp }
-    return lastGpu
-  } catch {
-    hasNvidiaSmi = false
-    return { load: null, temp: null }
   }
-}
-
-// La température CPU passe par WMI (coûteux) : au max 1 lecture sur 4, cache entre-temps.
-let tempCounter = 0
-let lastTemp: number | null = null
-let tempSupported = true
-
-async function getCpuTempThrottled(): Promise<number | null> {
-  if (!tempSupported) return null
-  if (tempCounter++ % 4 !== 0) return lastTemp
-  try {
-    const t = await si.cpuTemperature()
-    lastTemp = t.main && t.main > 0 ? Math.round(t.main) : null
-    if (lastTemp === null && tempCounter > 4) tempSupported = false
-  } catch {
-    tempSupported = false
+  previousCpu = currentCpu
+  const total = totalmem()
+  const used = Math.max(0, Math.min(total, total - freemem()))
+  return {
+    cpuLoad: totalDelta > 0 ? Math.max(0, Math.min(100, Math.round((1 - idleDelta / totalDelta) * 100))) : 0,
+    memUsedGB: toGB(used),
+    memTotalGB: toGB(total),
+    memPercent: total > 0 ? Math.round((used / total) * 100) : 0,
+    cpuTemp: null,
+    gpuLoad: null,
+    gpuTemp: null
   }
-  return lastTemp
 }

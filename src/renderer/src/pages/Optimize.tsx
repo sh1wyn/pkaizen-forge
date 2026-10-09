@@ -28,51 +28,68 @@ export default function Optimize({ isAdmin }: { isAdmin: boolean }): React.JSX.E
   }
 
   useEffect(() => {
-    window.api.listTweaks().then(setTweaks)
-    cached('report', () => window.api.getSystemReport()).then(setReport)
+    window.api.listTweaks().then(setTweaks).catch((error) => toast(String(error), 'error'))
+    cached('report', () => window.api.getSystemReport()).then(setReport).catch((error) => toast(String(error), 'error'))
     cached('relevance', () => window.api.getTweakRelevance()).then((r) =>
       setRelevance(Object.fromEntries(r.map((x) => [x.id, x])))
-    )
-    refresh()
+    ).catch((error) => toast(String(error), 'error'))
+    void refresh().catch((error) => toast(String(error), 'error'))
   }, [])
 
   const score = useMemo(() => {
-    const reco = tweaks.filter((tw) => tw.recommended)
+    const reco = tweaks.filter((tw) => tw.recommended && !(tw.laptopWarning && report?.isLaptop))
     if (reco.length === 0) return 0
     const applied = reco.filter((tw) => states[tw.id]?.applied).length
     return Math.round((applied / reco.length) * 100)
-  }, [tweaks, states])
+  }, [tweaks, states, report])
+
+  const ready = report !== null && tweaks.length > 0 && tweaks.every((tweak) => states[tweak.id])
 
   const toggle = async (tw: TweakInfo): Promise<void> => {
-    if (busy) return
+    if (busy || !ready) return
     setBusy(tw.id)
-    const applied = states[tw.id]?.applied
-    const res = applied ? await window.api.revertTweak(tw.id) : await window.api.applyTweak(tw.id)
-    toast(res.message || (res.ok ? 'OK' : 'KO'), res.ok ? 'success' : 'error')
-    await refresh()
-    setBusy(null)
+    try {
+      const applied = states[tw.id]?.applied
+      const res = applied ? await window.api.revertTweak(tw.id) : await window.api.applyTweak(tw.id)
+      toast(res.message || (res.ok ? 'OK' : 'KO'), res.ok ? 'success' : 'error')
+      await refresh()
+    } catch (error) {
+      toast(String(error), 'error')
+    } finally {
+      setBusy(null)
+    }
   }
 
   const applyAllRecommended = async (): Promise<void> => {
-    if (busy) return
+    if (busy || !ready) return
     setBusy('__all__')
     let okCount = 0
-    for (const tw of tweaks.filter((x) => x.recommended && !states[x.id]?.applied)) {
-      if (tw.needsAdmin && !isAdmin) continue
-      if (tw.laptopWarning && report?.isLaptop) continue
-      const res = await window.api.applyTweak(tw.id)
-      if (res.ok) okCount++
+    try {
+      for (const tw of tweaks.filter((x) => x.recommended && !states[x.id]?.applied)) {
+        if (tw.needsAdmin && !isAdmin) continue
+        if (tw.laptopWarning && report?.isLaptop) continue
+        const res = await window.api.applyTweak(tw.id)
+        if (res.ok) okCount++
+      }
+      await refresh()
+      toast(`${okCount} ${t('opt.applied')}`, 'success')
+    } catch (error) {
+      toast(String(error), 'error')
+    } finally {
+      setBusy(null)
     }
-    await refresh()
-    toast(`${okCount} ${t('opt.applied')}`, 'success')
-    setBusy(null)
   }
 
   const restorePoint = async (): Promise<void> => {
     setRestoreBusy(true)
-    const res = await window.api.createRestorePoint()
-    toast(res.message || '', res.ok ? 'success' : 'error')
-    setRestoreBusy(false)
+    try {
+      const res = await window.api.createRestorePoint()
+      toast(res.message || '', res.ok ? 'success' : 'error')
+    } catch (error) {
+      toast(String(error), 'error')
+    } finally {
+      setRestoreBusy(false)
+    }
   }
 
   const cats = [...new Set(tweaks.map((tw) => tw.category))]
@@ -89,8 +106,12 @@ export default function Optimize({ isAdmin }: { isAdmin: boolean }): React.JSX.E
             className="btn primary"
             style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}
             onClick={async () => {
-              const r = await window.api.relaunchAdmin()
-              if (!r.ok && r.message) toast(r.message, 'info')
+              try {
+                const result = await window.api.relaunchAdmin()
+                if (!result.ok && result.message) toast(result.message, 'info')
+              } catch (error) {
+                toast(String(error), 'error')
+              }
             }}
           >
             🛡 {t('opt.relaunchAdmin')}
@@ -113,10 +134,10 @@ export default function Optimize({ isAdmin }: { isAdmin: boolean }): React.JSX.E
       </div>
 
       <div className="toolbar">
-        <button className="btn primary" disabled={busy != null} onClick={applyAllRecommended}>
+        <button className="btn primary" disabled={busy != null || !ready || restoreBusy} onClick={applyAllRecommended}>
           {busy === '__all__' ? <span className="spinner" /> : '⚡'} {t('opt.applyAll')}
         </button>
-        <button className="btn" disabled={restoreBusy} onClick={restorePoint}>
+        <button className="btn" disabled={restoreBusy || busy != null} onClick={restorePoint}>
           {restoreBusy ? <span className="spinner" /> : '🛟'} {t('opt.restorePoint')}
         </button>
       </div>
@@ -154,7 +175,7 @@ export default function Optimize({ isAdmin }: { isAdmin: boolean }): React.JSX.E
                   ) : (
                     <button
                       className={`switch ${st?.applied ? 'on' : ''}`}
-                      disabled={lockedAdmin || busy != null}
+                      disabled={lockedAdmin || busy != null || !ready || restoreBusy}
                       title={lockedAdmin ? t('opt.relaunchAdmin') : st?.applied ? t('opt.disable') : t('opt.enable')}
                       onClick={() => toggle(tw)}
                     />

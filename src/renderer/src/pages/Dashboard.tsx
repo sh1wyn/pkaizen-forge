@@ -14,12 +14,24 @@ const SEV_STYLE: Record<Insight['severity'], { icon: string; color: string }> = 
 export default function Dashboard(): React.JSX.Element {
   const { t } = useI18n()
   const [report, setReport] = useState<SystemReport | null>(null)
+  const [reportBusy, setReportBusy] = useState(false)
   const [live, setLive] = useState<LiveStats | null>(null)
   const [insights, setInsights] = useState<Insight[] | null>(null)
   const [insightsBusy, setInsightsBusy] = useState(false)
   const [details, setDetails] = useState<DetailedInfo | null>(null)
   const [detailsBusy, setDetailsBusy] = useState(false)
   const toast = useToast()
+
+  const loadHardware = async (): Promise<void> => {
+    setReportBusy(true)
+    try {
+      setReport(await cached('report', () => window.api.getSystemReport()))
+    } catch {
+      toast(t('dash.errHw'), 'error')
+    } finally {
+      setReportBusy(false)
+    }
+  }
 
   const runAnalysis = async (): Promise<void> => {
     setInsightsBusy(true)
@@ -42,22 +54,25 @@ export default function Dashboard(): React.JSX.Element {
   }
 
   useEffect(() => {
-    cached('report', () => window.api.getSystemReport()).then(setReport).catch(() => toast(t('dash.errHw'), 'error'))
     let stop = false
+    let timer: ReturnType<typeof setTimeout> | undefined
     const poll = async (): Promise<void> => {
-      if (document.hidden) return // zéro conso quand la fenêtre est minimisée/cachée
+      if (stop) return
       try {
-        const s = await window.api.getLiveStats()
-        if (!stop) setLive(s)
+        if (!document.hidden) {
+          const stats = await window.api.getLiveStats()
+          if (!stop) setLive(stats)
+        }
       } catch {
         /* ignore */
+      } finally {
+        if (!stop) timer = setTimeout(poll, 5000)
       }
     }
-    poll()
-    const t2 = setInterval(poll, 2500)
+    void poll()
     return () => {
       stop = true
-      clearInterval(t2)
+      clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -124,8 +139,11 @@ export default function Dashboard(): React.JSX.Element {
 
       <div className="section-title">{t('dash.hardware')}</div>
       {!report && (
-        <div className="card">
-          <span className="spinner" /> <span className="muted">{t('dash.readingHw')}</span>
+        <div className="toolbar">
+          <button className="btn" disabled={reportBusy} onClick={loadHardware}>
+            {reportBusy && <span className="spinner" />} {t('dash.scanHardware')}
+          </button>
+          {reportBusy && <span className="muted">{t('dash.readingHw')}</span>}
         </div>
       )}
       {report && (

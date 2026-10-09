@@ -1,7 +1,6 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, dialog, screen } from 'electron'
 import { join } from 'path'
-import { readFileSync, existsSync } from 'fs'
-import { execFile } from 'child_process'
+import { readFileSync, existsSync, appendFileSync } from 'fs'
 import { ps } from './system/powershell'
 import { setLang, T, type Lang } from './system/i18n'
 import { getSystemReport, getLiveStats } from './system/sysinfo'
@@ -34,11 +33,20 @@ import {
 } from './system/updater'
 
 let isAdminCached: boolean | null = null
+if (process.argv.includes('--safe-mode')) app.disableHardwareAcceleration()
 let mainWin: BrowserWindow | null = null
+let diskController: AbortController | null = null
 
 // Jamais de crash silencieux : on logge et on continue.
-process.on('uncaughtException', (err) => console.error('[Pkaizen] uncaughtException:', err))
-process.on('unhandledRejection', (reason) => console.error('[Pkaizen] unhandledRejection:', reason))
+function logError(context: string, error: unknown): void {
+  console.error(`[Pkaizen] ${context}:`, error)
+  try {
+    appendFileSync(join(app.getPath('userData'), 'errors.log'),
+      `${new Date().toISOString()} ${context}: ${error instanceof Error ? error.stack : String(error)}\n`)
+  } catch { /* logging must not prevent startup */ }
+}
+process.on('uncaughtException', (error) => logError('uncaughtException', error))
+process.on('unhandledRejection', (error) => logError('unhandledRejection', error))
 
 // Spam-proof : un même appel IPC déjà en cours n'est jamais relancé en parallèle.
 const inflight = new Map<string, Promise<unknown>>()
@@ -50,7 +58,7 @@ function handle(channel: string, fn: (e: Electron.IpcMainInvokeEvent, ...args: n
     const p = Promise.resolve()
       .then(() => fn(e, ...(args as never[])))
       .catch((err) => {
-        console.error(`[Pkaizen] IPC ${channel}:`, err)
+        logError(`IPC ${channel}`, err)
         throw err
       })
       .finally(() => inflight.delete(key))
@@ -61,19 +69,19 @@ function handle(channel: string, fn: (e: Electron.IpcMainInvokeEvent, ...args: n
 
 async function isAdmin(): Promise<boolean> {
   if (isAdminCached != null) return isAdminCached
-  // net session : natif, instantané, réussit uniquement élevé (l'ancien check PS pouvait timeout et cacher "false" à tort).
-  isAdminCached = await new Promise<boolean>((resolve) => {
-    execFile('net.exe', ['session'], { windowsHide: true, timeout: 5000 }, (err) => resolve(!err))
-  })
+  const result = await ps('([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)', 15000)
+  if (!/^(true|false)$/i.test(result)) throw new Error('Invalid administrator status')
+  isAdminCached = result.toLowerCase() === 'true'
   return isAdminCached
 }
 
 function createWindow(): void {
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize
   const win = new BrowserWindow({
-    width: 1240,
-    height: 800,
-    minWidth: 980,
-    minHeight: 640,
+    width: Math.min(1240, width),
+    height: Math.min(800, height),
+    minWidth: Math.min(640, width),
+    minHeight: Math.min(480, height),
     backgroundColor: '#050609',
     autoHideMenuBar: true,
     title: 'Pkaizen Forge',
@@ -84,7 +92,7 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true
     }
   })
   mainWin = win
@@ -92,8 +100,11 @@ function createWindow(): void {
     if (mainWin === win) mainWin = null
   })
   win.webContents.on('unresponsive', () => console.error('[Pkaizen] renderer unresponsive'))
+  win.webContents.on('will-navigate', (event) => event.preventDefault())
+  win.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+  win.webContents.session.setPermissionCheckHandler(() => false)
   win.webContents.on('render-process-gone', (_e, details) =>
-    console.error('[Pkaizen] renderer gone:', details.reason)
+    logError('renderer gone', details.reason)
   )
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -110,21 +121,6 @@ function createWindow(): void {
 
 function registerIpc(): void {
   ipcMain.handle('app:setLang', (_e, l: Lang) => setLang(l))
-  handle('app:relaunchAdmin', async () => {
-    if (!app.isPackaged) return { ok: false, message: 'Dev mode: relaunch VS Code as admin instead.' }
-    const { spawn } = await import('child_process')
-    const exe = process.execPath
-    // Délai pour laisser l'instance actuelle libérer le verrou mono-instance.
-    const child = spawn(
-      'powershell.exe',
-      ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', `Start-Sleep -Milliseconds 900; Start-Process -FilePath '${exe.replace(/'/g, "''")}' -Verb RunAs`],
-      { detached: true, stdio: 'ignore' }
-    )
-    child.unref()
-    setTimeout(() => app.quit(), 200)
-    return { ok: true }
-  })
-
   ipcMain.handle('app:version', () => app.getVersion())
   handle('app:checkUpdates', async () => {
     if (!app.isPackaged || !updaterRef) return { status: 'dev', current: app.getVersion() }
@@ -148,7 +144,12 @@ function registerIpc(): void {
     }
     const exe = process.execPath.replace(/'/g, "''")
     app.releaseSingleInstanceLock()
-    await ps(`Start-Process -FilePath '${exe}' -Verb RunAs`)
+    try {
+      await ps(`$ErrorActionPreference='Stop'; Start-Process -FilePath '${exe}' -Verb RunAs -ErrorAction Stop`)
+    } catch (error) {
+      if (!app.requestSingleInstanceLock()) app.quit()
+      throw error
+    }
     setTimeout(() => app.quit(), 500)
     return { ok: true }
   })
@@ -188,7 +189,16 @@ function registerIpc(): void {
   handle('tweaks:apply', (_e, id: string) => applyTweak(id))
   handle('tweaks:revert', (_e, id: string) => revertTweak(id))
   handle('tweaks:relevance', () => getTweakRelevance())
-  handle('bench:disk', () => diskBench())
+  handle('bench:disk', async () => {
+    if (diskController) throw new Error('Disk benchmark already running')
+    diskController = new AbortController()
+    try {
+      return await diskBench(diskController.signal)
+    } finally {
+      diskController = null
+    }
+  })
+  handle('bench:cancel', () => { diskController?.abort() })
 
   handle('clean:preview', () => previewClean())
   handle('clean:run', (_e, ids: string[]) => runClean(ids))
@@ -286,6 +296,10 @@ if (!gotLock) {
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
+  }).catch((error) => {
+    logError('startup failed', error)
+    dialog.showErrorBox('Pkaizen Forge', `Startup failed.\n${String(error)}\n\n${join(app.getPath('userData'), 'errors.log')}`)
+    app.exit(1)
   })
 }
 

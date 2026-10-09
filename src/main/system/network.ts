@@ -1,5 +1,5 @@
 import { psJson, ps, asArray } from './powershell'
-import si from 'systeminformation'
+import si from './hardware'
 import { T } from './i18n'
 import type { PingResult, NetInfo, DnsBench, ActionResult, SpeedResult } from '../../shared/types'
 

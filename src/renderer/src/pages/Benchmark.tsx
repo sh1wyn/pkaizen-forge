@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { DiskBenchResult } from '../../../shared/types'
 import { useI18n } from '../lib/i18n'
 import { useToast } from '../components/Toast'
+import { benchmarkThreads, runCpuWorkers, runGpuBench } from '../lib/benchmark'
 
 interface BenchRun {
   date: string
@@ -9,118 +10,21 @@ interface BenchRun {
   cpuMulti: number
   writeMBps: number
   readMBps: number
-  gpuFps: number
+  gpuFps: number | null
+  threads: number
+  renderer: string
   score: number
 }
 
-const HISTORY_KEY = 'pkaizen-bench-history'
+const HISTORY_KEY = 'pkaizen-bench-history-v2'
 
-const WORKER_CODE = `
-onmessage = () => {
-  const end = performance.now() + 1500
-  let ops = 0
-  let x = 1.1
-  while (performance.now() < end) {
-    for (let i = 0; i < 20000; i++) {
-      x = Math.sin(x) * Math.sqrt(i + 2) + Math.cos(x * 1.3)
-      x = x % 10 + 1.0001
-    }
-    ops += 20000
-  }
-  postMessage(Math.round(ops / 1.5))
-}
-`
-
-function runCpuWorkers(count: number): Promise<number> {
-  const url = URL.createObjectURL(new Blob([WORKER_CODE], { type: 'application/javascript' }))
-  const workers = Array.from({ length: count }, () => new Worker(url))
-  return Promise.all(
-    workers.map(
-      (w) =>
-        new Promise<number>((resolve, reject) => {
-          const guard = setTimeout(() => {
-            w.terminate()
-            reject(new Error('worker timeout'))
-          }, 15000)
-          w.onerror = (e) => {
-            clearTimeout(guard)
-            w.terminate()
-            reject(new Error(e.message || 'worker error'))
-          }
-          w.onmessage = (e) => {
-            clearTimeout(guard)
-            resolve(e.data as number)
-            w.terminate()
-          }
-          w.postMessage(null)
-        })
-    )
-  ).then((scores) => {
-    URL.revokeObjectURL(url)
-    return Math.round(scores.reduce((a, b) => a + b, 0) / 1000)
-  })
-}
-
-/** Scène WebGL lourde ~4s, débridée de la synchro écran via gl.finish : mesure le vrai débit GPU. */
-function runGpuBench(canvas: HTMLCanvasElement): Promise<{ fps: number; renderer: string }> {
-  return new Promise((resolve) => {
-    const gl = canvas.getContext('webgl2', { antialias: true, powerPreference: 'high-performance' })
-    if (!gl) {
-      resolve({ fps: 0, renderer: '' })
-      return
-    }
-    const dbg = gl.getExtension('WEBGL_debug_renderer_info')
-    const renderer = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : ''
-    const vs = `#version 300 es
-    in vec2 p; uniform float t; out vec3 col;
-    void main(){
-      float i = float(gl_InstanceID);
-      float a = t * (0.3 + mod(i, 7.0) * 0.1) + i * 0.37;
-      vec2 o = vec2(cos(a + i), sin(a * 1.3 + i)) * (0.1 + mod(i, 83.0) / 100.0);
-      gl_Position = vec4(p * 0.02 + o, 0.0, 1.0);
-      col = vec3(mod(i,3.0)/3.0, mod(i,5.0)/5.0, mod(i,7.0)/7.0);
-    }`
-    const fs = `#version 300 es
-    precision highp float; in vec3 col; out vec4 o;
-    void main(){ float acc = 0.0; for (int k=0;k<24;k++){ acc += sin(col.x*float(k)+col.y*19.0); } o = vec4(col*0.7+acc*0.001+0.3, 1.0); }`
-    const prog = gl.createProgram()!
-    for (const [type, src] of [
-      [gl.VERTEX_SHADER, vs],
-      [gl.FRAGMENT_SHADER, fs]
-    ] as const) {
-      const sh = gl.createShader(type)!
-      gl.shaderSource(sh, src)
-      gl.compileShader(sh)
-      gl.attachShader(prog, sh)
-    }
-    gl.linkProgram(prog)
-    gl.useProgram(prog)
-    const buf = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf)
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 1, -1, -1, 1, -1]), gl.STATIC_DRAW)
-    const loc = gl.getAttribLocation(prog, 'p')
-    gl.enableVertexAttribArray(loc)
-    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0)
-    const tLoc = gl.getUniformLocation(prog, 't')
-
-    let frames = 0
-    const start = performance.now()
-    const DURATION = 4000
-    const INSTANCES = 30000
-    const loop = (): void => {
-      const t = (performance.now() - start) / 1000
-      gl.viewport(0, 0, canvas.width, canvas.height)
-      gl.clearColor(0.04, 0.05, 0.08, 1)
-      gl.clear(gl.COLOR_BUFFER_BIT)
-      gl.uniform1f(tLoc, t)
-      gl.drawArraysInstanced(gl.TRIANGLES, 0, 3, INSTANCES)
-      gl.finish() // force le rendu complet : décorrélé des Hz de l'écran
-      frames++
-      if (performance.now() - start < DURATION) setTimeout(loop, 0)
-      else resolve({ fps: Math.round(frames / (DURATION / 1000)), renderer })
-    }
-    loop()
-  })
+function validRun(value: unknown): value is BenchRun {
+  if (!value || typeof value !== 'object') return false
+  const run = value as BenchRun
+  return typeof run.date === 'string' && typeof run.renderer === 'string' &&
+    [run.cpuSingle, run.cpuMulti, run.writeMBps, run.readMBps, run.score, run.threads]
+      .every((number) => Number.isFinite(number) && number >= 0) &&
+    (run.gpuFps === null || (Number.isFinite(run.gpuFps) && run.gpuFps >= 0))
 }
 
 export default function Benchmark(): React.JSX.Element {
@@ -129,36 +33,64 @@ export default function Benchmark(): React.JSX.Element {
   const [gpuName, setGpuName] = useState('')
   const [result, setResult] = useState<BenchRun | null>(null)
   const [history, setHistory] = useState<BenchRun[]>([])
+  const controller = useRef<AbortController | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [canvasKey, setCanvasKey] = useState(0)
   const toast = useToast()
 
   useEffect(() => {
     try {
-      setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'))
+      const saved: unknown = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
+      setHistory(Array.isArray(saved) ? saved.filter(validRun).slice(0, 10) : [])
     } catch {
       setHistory([])
+    }
+    const cancelWhenHidden = (): void => {
+      if (document.hidden) controller.current?.abort()
+    }
+    document.addEventListener('visibilitychange', cancelWhenHidden)
+    return () => {
+      document.removeEventListener('visibilitychange', cancelWhenHidden)
+      controller.current?.abort()
     }
   }, [])
 
   const run = async (): Promise<void> => {
+    if (controller.current) return
+    const current = new AbortController()
+    controller.current = current
+    const { signal } = current
+    const cancelDisk = (): void => { void window.api.cancelDiskBench().catch(() => undefined) }
+    signal.addEventListener('abort', cancelDisk, { once: true })
     try {
       setResult(null)
+      setGpuName('')
+      setCanvasKey((key) => key + 1)
       setPhase('cpu1')
-      const cpuSingle = await runCpuWorkers(1)
+      const cpuSingle = await runCpuWorkers(1, signal)
+      signal.throwIfAborted()
       setPhase('cpuN')
-      const cpuMulti = await runCpuWorkers(navigator.hardwareConcurrency || 4)
+      const threads = benchmarkThreads(navigator.hardwareConcurrency || 2)
+      const cpuMulti = await runCpuWorkers(threads, signal)
+      signal.throwIfAborted()
       setPhase('disk')
       const disk: DiskBenchResult = await window.api.diskBench()
+      signal.throwIfAborted()
       setPhase('gpu')
-      const canvas = document.getElementById('bench-canvas') as HTMLCanvasElement
+      const canvas = canvasRef.current
+      if (!canvas) throw new Error('Benchmark canvas unavailable')
       canvas.width = 800
       canvas.height = 500
-      const gpu = await runGpuBench(canvas)
+      const gpu = await runGpuBench(canvas, signal)
+      signal.throwIfAborted()
       const gpuFps = gpu.fps
       setGpuName(gpu.renderer)
 
-      const score = Math.round(cpuSingle * 2 + cpuMulti + disk.readMBps / 20 + disk.writeMBps / 20 + gpuFps * 3)
+      const score = Math.round(cpuSingle * 2 + cpuMulti)
       const runData: BenchRun = {
-        date: new Date().toLocaleString('fr-FR'),
+        date: new Date().toLocaleString(),
+        threads,
+        renderer: gpu.renderer,
         cpuSingle,
         cpuMulti,
         writeMBps: disk.writeMBps,
@@ -169,20 +101,24 @@ export default function Benchmark(): React.JSX.Element {
       setResult(runData)
       const newHistory = [runData, ...history].slice(0, 10)
       setHistory(newHistory)
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory))
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory)) } catch { /* storage unavailable */ }
       toast(t('bench.done'), 'success')
     } catch {
-      toast(t('bench.error'), 'error')
+      if (!signal.aborted) toast(t('bench.error'), 'error')
+    } finally {
+      signal.removeEventListener('abort', cancelDisk)
+      controller.current = null
+      setPhase('idle')
     }
-    setPhase('idle')
   }
 
   const prev = history.length > 1 && result ? history[1] : null
-  const delta = prev && result ? Math.round(((result.score - prev.score) / prev.score) * 100) : null
+  const delta = prev && result && prev.score > 0 && prev.threads === result.threads
+    ? Math.round(((result.score - prev.score) / prev.score) * 100) : null
 
   const PHASE_LABEL: Record<string, string> = {
     cpu1: t('bench.cpu1'),
-    cpuN: t('bench.cpuN'),
+    cpuN: t('bench.cpuMulti'),
     disk: t('bench.disk'),
     gpu: t('bench.gpu')
   }
@@ -190,19 +126,29 @@ export default function Benchmark(): React.JSX.Element {
   return (
     <>
       <h1>{t('bench.title')}</h1>
-      <p className="subtitle">{t('bench.subtitle')}</p>
-
-      <div className="banner info">{t('bench.tip')}</div>
-      <div className="banner info">{t('bench.explain')}</div>
+      <p className="subtitle">{t('bench.method')}</p>
 
       <div className="toolbar">
         <button className="btn primary" disabled={phase !== 'idle'} onClick={run}>
           {phase !== 'idle' ? <span className="spinner" /> : '🧪'} {t('bench.run')}
         </button>
+        {phase !== 'idle' && (
+          <button className="btn" onClick={() => controller.current?.abort()}>{t('bench.cancel')}</button>
+        )}
         {phase !== 'idle' && <span className="muted">{PHASE_LABEL[phase]}</span>}
       </div>
 
-      <canvas id="bench-canvas" style={{ width: phase === 'gpu' ? 400 : 0, height: phase === 'gpu' ? 250 : 0, borderRadius: 12 }} />
+      <div className="toolbar">
+        {[
+          ['Cinebench', 'https://www.maxon.net/en/downloads/cinebench'],
+          ['3DMark', 'https://benchmarks.ul.com/3dmark'],
+          ['CrystalDiskMark', 'https://crystalmark.info/en/software/crystaldiskmark/']
+        ].map(([name, url]) => (
+          <button className="btn" key={name} onClick={() => void window.api.openExternal(url)}>{name}</button>
+        ))}
+      </div>
+
+      <canvas key={canvasKey} ref={canvasRef} id="bench-canvas" style={{ display: phase === 'gpu' ? 'block' : 'none', width: '100%', maxWidth: 400, aspectRatio: '8 / 5', borderRadius: 8 }} />
 
       {result && (
         <>
@@ -210,7 +156,7 @@ export default function Benchmark(): React.JSX.Element {
             <div className="score-ring">
               <div className="score-num">{result.score}</div>
               <div style={{ flex: 1 }}>
-                <div className="big">{t('bench.index')}</div>
+                <div className="big">{t('bench.cpuIndex')}</div>
                 <div className="sub">
                   {delta != null
                     ? delta > 0
@@ -227,28 +173,26 @@ export default function Benchmark(): React.JSX.Element {
             <div className="card stagger">
               <h3>{t('bench.cpuSingle')}</h3>
               <div className="big">{result.cpuSingle} pts</div>
-              <div className="sub">{t('bench.cpuSingleSub')}</div>
             </div>
             <div className="card stagger">
               <h3>{t('bench.cpuMulti')}</h3>
               <div className="big">{result.cpuMulti} pts</div>
-              <div className="sub">{navigator.hardwareConcurrency} {t('bench.threadsUsed')}</div>
+              <div className="sub">{result.threads} {t('bench.threadsUsed')}</div>
             </div>
             <div className="card stagger">
               <h3>{t('bench.write')}</h3>
-              <div className="big">{result.writeMBps} MB/s</div>
-              <div className="sub">{result.writeMBps > 1000 ? t('bench.nvme') : result.writeMBps > 350 ? t('bench.sata') : t('bench.slow')}</div>
+              <div className="big">{result.writeMBps} MiB/s</div>
             </div>
             <div className="card stagger">
               <h3>{t('bench.read')}</h3>
-              <div className="big">{result.readMBps} MB/s</div>
-              <div className="sub">{t('bench.readSub')}</div>
+              <div className="big">{result.readMBps} MiB/s</div>
+              <div className="sub">{t('bench.cachedRead')}</div>
             </div>
             <div className="card stagger">
               <h3>{t('bench.gpuRender')}</h3>
-              <div className="big">{result.gpuFps} FPS</div>
+              <div className="big">{result.gpuFps == null ? t('bench.unavailable') : `${result.gpuFps} FPS`}</div>
               <div className="sub">
-                {result.gpuFps >= 400 ? t('bench.gpuHigh') : result.gpuFps >= 120 ? t('bench.gpuMid') : t('bench.gpuLow')}
+                {t('bench.gpuLimited')}
                 {gpuName && (
                   <>
                     <br />
@@ -268,7 +212,7 @@ export default function Benchmark(): React.JSX.Element {
             <thead>
               <tr>
                 <th>{t('bench.date')}</th>
-                <th>{t('bench.index')}</th>
+                <th>{t('bench.cpuIndex')}</th>
                 <th>CPU 1c</th>
                 <th>CPU multi</th>
                 <th>{t('bench.write')}</th>
@@ -285,9 +229,9 @@ export default function Benchmark(): React.JSX.Element {
                   </td>
                   <td>{h.cpuSingle}</td>
                   <td>{h.cpuMulti}</td>
-                  <td>{h.writeMBps} Mo/s</td>
-                  <td>{h.readMBps} Mo/s</td>
-                  <td>{h.gpuFps} FPS</td>
+                  <td>{h.writeMBps} MiB/s</td>
+                  <td>{h.readMBps} MiB/s</td>
+                  <td>{h.gpuFps == null ? t('bench.unavailable') : `${h.gpuFps} FPS`}</td>
                 </tr>
               ))}
             </tbody>

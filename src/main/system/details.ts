@@ -1,4 +1,4 @@
-import si from 'systeminformation'
+import si from './hardware'
 import { psJson, asArray } from './powershell'
 import { T } from './i18n'
 import type { DetailedInfo } from '../../shared/types'

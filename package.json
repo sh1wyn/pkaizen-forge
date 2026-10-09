@@ -1,6 +1,6 @@
 {
   "name": "pkaizen-forge",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Pkaizen Forge — optimisation PC sûre et réversible : diagnostic matériel, boost FPS/latence, nettoyage et pilotes officiels (desktop & laptop)",
   "main": "./out/main/index.js",
   "author": "sh1wyn",
@@ -11,7 +11,10 @@
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "audit:app": "node scripts/audit.mjs",
-    "dist": "npm run typecheck && node scripts/audit.mjs && electron-vite build && electron-builder --win"
+    "test": "node --test scripts/regression.test.cjs",
+    "test:electron": "node --test scripts/electron.test.cjs",
+    "check": "npm run typecheck && npm test && npm run audit:app",
+    "dist": "npm run check && electron-vite build && npm run test:electron && electron-builder --win"
   },
   "dependencies": {
     "@xhayper/discord-rpc": "^1.5.1",
@@ -19,12 +22,13 @@
     "systeminformation": "^5.23.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "@types/node": "^22.10.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^3.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

@@ -29,21 +29,19 @@ body {
   color: var(--text);
   overflow: hidden;
   user-select: none;
-  letter-spacing: 0.1px;
+  letter-spacing: 0;
 }
 
 /* Mesh gradient animé façon macOS */
 body::before {
   content: '';
   position: fixed;
-  inset: -30%;
+  inset: 0;
   z-index: -1;
   background:
     radial-gradient(640px 640px at 75% 15%, rgba(124, 108, 251, 0.22), transparent 60%),
     radial-gradient(560px 560px at 15% 80%, rgba(56, 216, 255, 0.14), transparent 55%),
     radial-gradient(500px 500px at 90% 90%, rgba(255, 69, 120, 0.08), transparent 55%);
-  animation: meshFloat 24s ease-in-out infinite alternate;
-  filter: blur(40px);
 }
 
 @keyframes meshFloat {
@@ -88,12 +86,13 @@ body::before {
   width: 228px;
   min-width: 228px;
   background: var(--bg2);
-  backdrop-filter: blur(40px) saturate(1.8);
   border: 1px solid var(--border);
   border-radius: 22px;
   box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
   padding: 22px 14px 16px;
   gap: 3px;
 }
@@ -214,11 +213,11 @@ body::before {
 /* ---------- Main (panneau verre flottant) ---------- */
 .main {
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 34px 38px 56px;
   background: rgba(14, 17, 26, 0.45);
-  backdrop-filter: blur(30px) saturate(1.5);
   border: 1px solid var(--border);
   border-radius: 22px;
   box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -245,13 +244,12 @@ body::before {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 14px;
 }
 
 .card {
   background: var(--card);
-  backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
@@ -328,7 +326,6 @@ body::before {
   justify-content: space-between;
   gap: 16px;
   background: var(--card);
-  backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 17px 20px;
@@ -688,8 +685,38 @@ a.link:hover {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
 }
 
-.logo {
-  animation: glowPulse 4s ease-in-out infinite;
+.card, .row, .btn, .nav-btn, .banner, .score-ring {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.btn, .nav-btn { flex-shrink: 0; }
+.score-ring, .toolbar, .row { flex-wrap: wrap; }
+table { display: block; overflow-x: auto; max-width: 100%; }
+
+@media (max-width: 1000px) {
+  .sidebar { width: 190px; min-width: 190px; padding: 14px 8px; }
+  .main { padding: 22px 18px 32px; }
+  .logo { font-size: 17px; }
+}
+
+@media (max-width: 600px) {
+  #root { flex-direction: column; padding: 42px 6px 6px; gap: 6px; }
+  .sidebar {
+    width: 100%; min-width: 0; max-height: 170px;
+    flex-direction: row; flex-wrap: wrap; gap: 4px; padding: 8px;
+  }
+  .logo { padding: 4px; }
+  .lang-switch { padding: 0; }
+  .nav-btn { padding: 6px 8px; font-size: 12px; }
+  .sidebar-footer { width: 100%; padding: 4px; }
+  .main { padding: 18px 12px; border-radius: 12px; }
+  .main h1 { font-size: 26px; }
+  .score-num { font-size: 36px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
 @keyframes glowPulse {

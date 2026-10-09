@@ -1,4 +1,4 @@
-import si from 'systeminformation'
+import si from './hardware'
 import { release } from 'os'
 import { ps, psJson, asArray } from './powershell'
 import { T } from './i18n'

@@ -1,4 +1,4 @@
-import si from 'systeminformation'
+import si from './hardware'
 import { ps } from './powershell'
 import { T } from './i18n'
 import { scanDrivers, getGpuDriverStatus, getProblemDevices } from './drivers'

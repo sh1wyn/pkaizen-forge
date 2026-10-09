@@ -38,7 +38,6 @@ declare global {
       getInsights: () => Promise<Insight[]>
       getDetailedInfo: () => Promise<DetailedInfo>
       isAdmin: () => Promise<boolean>
-      relaunchAdmin: () => Promise<ActionResult>
       createRestorePoint: () => Promise<ActionResult>
       openBatteryReport: () => Promise<ActionResult>
 
@@ -48,6 +47,7 @@ declare global {
       revertTweak: (id: string) => Promise<ActionResult>
       getTweakRelevance: () => Promise<TweakRelevance[]>
       diskBench: () => Promise<DiskBenchResult>
+      cancelDiskBench: () => Promise<void>
 
       previewClean: () => Promise<CleanTarget[]>
       runClean: (ids: string[]) => Promise<CleanResult[]>
