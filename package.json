@@ -10,7 +10,8 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "dist": "electron-vite build && electron-builder --win"
+    "audit:app": "node scripts/audit.mjs",
+    "dist": "npm run typecheck && node scripts/audit.mjs && electron-vite build && electron-builder --win"
   },
   "dependencies": {
     "systeminformation": "^5.23.5"
