@@ -38,8 +38,7 @@
       {
         "provider": "github",
         "owner": "sh1wyn",
-        "repo": "pkaizen-forge",
-        "private": true
+        "repo": "pkaizen-forge"
       }
     ],
     "directories": {
@@ -56,7 +55,8 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Pkaizen-Forge-Setup.${ext}"
     }
   },
   "allowScripts": {
