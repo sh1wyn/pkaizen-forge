@@ -1,6 +1,5 @@
 import { app } from 'electron'
-import { createWriteStream } from 'fs'
-import { readFile, unlink } from 'fs/promises'
+import { open, readFile, unlink } from 'fs/promises'
 import { join } from 'path'
 import type { DiskBenchResult } from '../../shared/types'
 
@@ -15,22 +14,10 @@ export async function diskBench(): Promise<DiskBenchResult> {
 
   try {
     const t0 = performance.now()
-    await new Promise<void>((resolve, reject) => {
-      const ws = createWriteStream(path)
-      let written = 0
-      const writeNext = (): void => {
-        let ok = true
-        while (ok && written < SIZE_MB / CHUNK_MB) {
-          written++
-          ok = ws.write(chunk)
-        }
-        if (written >= SIZE_MB / CHUNK_MB) ws.end()
-        else ws.once('drain', writeNext)
-      }
-      ws.on('error', reject)
-      ws.on('finish', resolve)
-      writeNext()
-    })
+    const fh = await open(path, 'w')
+    for (let i = 0; i < SIZE_MB / CHUNK_MB; i++) await fh.write(chunk)
+    await fh.datasync() // vide le cache OS : vitesse disque réelle, pas vitesse RAM
+    await fh.close()
     const writeMs = performance.now() - t0
 
     const t1 = performance.now()

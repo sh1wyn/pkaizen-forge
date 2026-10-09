@@ -61,14 +61,16 @@ function runCpuWorkers(count: number): Promise<number> {
   })
 }
 
-/** Scène WebGL lourde ~4s : mesure la moyenne de FPS de rendu. */
-function runGpuBench(canvas: HTMLCanvasElement): Promise<number> {
+/** Scène WebGL lourde ~4s, débridée de la synchro écran via gl.finish : mesure le vrai débit GPU. */
+function runGpuBench(canvas: HTMLCanvasElement): Promise<{ fps: number; renderer: string }> {
   return new Promise((resolve) => {
-    const gl = canvas.getContext('webgl2', { antialias: true })
+    const gl = canvas.getContext('webgl2', { antialias: true, powerPreference: 'high-performance' })
     if (!gl) {
-      resolve(0)
+      resolve({ fps: 0, renderer: '' })
       return
     }
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info')
+    const renderer = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : ''
     const vs = `#version 300 es
     in vec2 p; uniform float t; out vec3 col;
     void main(){
@@ -112,17 +114,19 @@ function runGpuBench(canvas: HTMLCanvasElement): Promise<number> {
       gl.clear(gl.COLOR_BUFFER_BIT)
       gl.uniform1f(tLoc, t)
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 3, INSTANCES)
+      gl.finish() // force le rendu complet : décorrélé des Hz de l'écran
       frames++
-      if (performance.now() - start < DURATION) requestAnimationFrame(loop)
-      else resolve(Math.round(frames / (DURATION / 1000)))
+      if (performance.now() - start < DURATION) setTimeout(loop, 0)
+      else resolve({ fps: Math.round(frames / (DURATION / 1000)), renderer })
     }
-    requestAnimationFrame(loop)
+    loop()
   })
 }
 
 export default function Benchmark(): React.JSX.Element {
   const { t } = useI18n()
   const [phase, setPhase] = useState<'idle' | 'cpu1' | 'cpuN' | 'disk' | 'gpu'>('idle')
+  const [gpuName, setGpuName] = useState('')
   const [result, setResult] = useState<BenchRun | null>(null)
   const [history, setHistory] = useState<BenchRun[]>([])
   const toast = useToast()
@@ -148,7 +152,9 @@ export default function Benchmark(): React.JSX.Element {
       const canvas = document.getElementById('bench-canvas') as HTMLCanvasElement
       canvas.width = 800
       canvas.height = 500
-      const gpuFps = await runGpuBench(canvas)
+      const gpu = await runGpuBench(canvas)
+      const gpuFps = gpu.fps
+      setGpuName(gpu.renderer)
 
       const score = Math.round(cpuSingle * 2 + cpuMulti + disk.readMBps / 20 + disk.writeMBps / 20 + gpuFps * 3)
       const runData: BenchRun = {
@@ -242,7 +248,13 @@ export default function Benchmark(): React.JSX.Element {
               <h3>{t('bench.gpuRender')}</h3>
               <div className="big">{result.gpuFps} FPS</div>
               <div className="sub">
-                {result.gpuFps >= 200 ? t('bench.gpuHigh') : result.gpuFps >= 90 ? t('bench.gpuMid') : t('bench.gpuLow')}
+                {result.gpuFps >= 400 ? t('bench.gpuHigh') : result.gpuFps >= 120 ? t('bench.gpuMid') : t('bench.gpuLow')}
+                {gpuName && (
+                  <>
+                    <br />
+                    <span style={{ opacity: 0.7 }}>{t('bench.renderedOn')} {gpuName}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
