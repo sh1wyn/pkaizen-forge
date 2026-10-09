@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --bg: #050609;
   --bg2: rgba(22, 26, 38, 0.6);
   --card: rgba(255, 255, 255, 0.045);
@@ -203,6 +204,11 @@ body::before {
 
 .lang-select:hover {
   border-color: var(--accent);
+}
+
+.lang-select option {
+  background: #12151f;
+  color: var(--text);
 }
 
 /* ---------- Main (panneau verre flottant) ---------- */
