@@ -20,11 +20,14 @@ const api = {
   getTweakRelevance: () => ipcRenderer.invoke('tweaks:relevance'),
   diskBench: () => ipcRenderer.invoke('bench:disk'),
   cancelDiskBench: () => ipcRenderer.invoke('bench:cancel'),
+  getInstalledGames: () => ipcRenderer.invoke('games:installed'),
 
   previewClean: () => ipcRenderer.invoke('clean:preview'),
   runClean: (ids: string[]) => ipcRenderer.invoke('clean:run', ids),
 
   scanDrivers: () => ipcRenderer.invoke('drivers:scan'),
+  getDriverInstallers: () => ipcRenderer.invoke('drivers:installers'),
+  launchDriverInstaller: (id: string) => ipcRenderer.invoke('drivers:launchInstaller', id),
   getWingetUpgrades: () => ipcRenderer.invoke('drivers:winget'),
   getVendorLinks: () => ipcRenderer.invoke('drivers:links'),
   getGpuDriverStatus: () => ipcRenderer.invoke('drivers:gpuStatus'),
@@ -59,6 +62,7 @@ const api = {
   },
   getBrowserReport: () => ipcRenderer.invoke('browser:report'),
   installBrowser: (id: string) => ipcRenderer.invoke('browser:install', id),
+  openBrowserDefaults: (id: string) => ipcRenderer.invoke('browser:defaults', id),
   generateReport: () => ipcRenderer.invoke('report:generate'),
 
   openExternal: (url: string) => ipcRenderer.invoke('shell:open', url)

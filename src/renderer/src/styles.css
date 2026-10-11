@@ -17,6 +17,26 @@
   --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+.gaming-workbench { margin-bottom: 36px; }
+.gaming-block { margin: 20px 0; min-width: 0; line-height: 1.6; }
+.gaming-block legend { font-weight: 700; padding: 0 8px; font-size: 17px; }
+.gaming-block p + p { margin-top: 10px; }
+.gaming-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 14px; }
+.gaming-field { display: flex; flex-direction: column; gap: 7px; margin: 14px 0; min-width: 0; font-size: 13px; }
+.gaming-field input, .gaming-field select {
+  width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--border-light);
+  border-radius: 8px; background: #12151f; color: var(--text); font: inherit;
+}
+.gaming-field input:focus-visible, .gaming-field select:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+.gaming-field input:disabled, .gaming-field select:disabled { opacity: 0.5; }
+.gaming-advice { margin: 16px 0; line-height: 1.6; }
+.frametime-chart { display: flex; align-items: flex-end; gap: 2px; height: 140px; margin: 14px 0; border-bottom: 1px solid var(--muted); }
+.frametime-chart > div { flex: 1; min-width: 0; }
+.verification-command { white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; margin-top: 12px; }
+.gaming-block summary { cursor: pointer; font-weight: 700; }
+.gaming-workbench .sub { line-height: 1.6; }
+.gaming-workbench a.btn { text-decoration: none; }
+
 * {
   margin: 0;
   padding: 0;

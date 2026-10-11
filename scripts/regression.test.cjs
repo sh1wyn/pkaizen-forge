@@ -21,6 +21,219 @@ function load(relative, mocks = {}, globals = {}) {
   return module.exports
 }
 
+const gaming = () => load('src/renderer/src/lib/gaming.ts', {}, { TextEncoder })
+
+test('optimization profiles require explicit eligible selections and exclude risky automatic changes', () => {
+  const { exclusionFor, profileSelection } = load('src/renderer/src/lib/optimization.ts')
+  const tweaks = [
+    { id: 'gamemode-on', recommended: true },
+    { id: 'menu-delay', recommended: true },
+    { id: 'transparency-off', recommended: false },
+    { id: 'hags-on', needsAdmin: true, recommended: true },
+    { id: 'power-high', laptopWarning: true, recommended: true },
+    { id: 'unknown', recommended: true }
+  ]
+  const states = Object.fromEntries(tweaks.slice(0, 5).map((tw) => [tw.id, { available: true, applied: false }]))
+  assert.deepEqual(Array.from(profileSelection('gaming', tweaks, states, false, true)), ['gamemode-on'])
+  assert.deepEqual(Array.from(profileSelection('desktop', tweaks, states, false, true)), ['menu-delay', 'transparency-off'])
+  assert.deepEqual(Array.from(profileSelection('recommended', tweaks, states, false, true)), ['gamemode-on', 'menu-delay'])
+  assert.deepEqual(Array.from(profileSelection('recommended', tweaks, states, true, null)), [])
+  assert.equal(exclusionFor(tweaks[0], { applied: true, available: true }, false, false), 'applied')
+  assert.equal(exclusionFor(tweaks[0], { applied: false, available: false }, true, false), 'unknown')
+  assert.equal(exclusionFor(tweaks[3], states['hags-on'], false, false), 'admin')
+  assert.equal(exclusionFor(tweaks[4], states['power-high'], true, true), 'laptop')
+})
+
+test('tweak state failure rejects rather than reporting success-shaped inactive settings', async () => {
+  const { getTweakStates } = load('src/main/system/optimizer.ts', {
+    './powershell': { psJson: async () => null }, './i18n': {}
+  }, { console: { error() {} } })
+  await assert.rejects(getTweakStates(), /Invalid tweak state response/)
+  const engine = load('src/main/system/optimizer.ts', {
+    './powershell': { psJson: async () => ({ 'gamemode-on': false, 'menu-delay': 'invalid' }) }, './i18n': {}
+  })
+  const states = await engine.getTweakStates()
+  assert.equal(states.find((st) => st.id === 'gamemode-on').available, true)
+  assert.equal(states.find((st) => st.id === 'menu-delay').available, false)
+})
+
+test('transparency optimization restores original DWORD or absence using an isolated registry fixture', { skip: process.platform !== 'win32' }, async () => {
+  const { promisify } = require('node:util')
+  const { execFile } = require('node:child_process')
+  const { randomUUID } = require('node:crypto')
+  const root = 'HKCU:\\Software\\PkaizenTest_' + randomUUID()
+  const key = root + '\\Personalize'
+  const backup = root + '\\Backup'
+  const execute = async (script) => (await promisify(execFile)('powershell.exe', [
+    '-NoProfile', '-NonInteractive', '-EncodedCommand',
+    Buffer.from("$ErrorActionPreference='Stop';" + script, 'utf16le').toString('base64')
+  ], { windowsHide: true, timeout: 30_000 })).stdout.trim()
+  const engine = load('src/main/system/optimizer.ts', {
+    './i18n': { T: (english) => english },
+    './powershell': { ps: (script) => execute(script
+      .replaceAll('HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize', key)
+      .replaceAll('HKCU:\\Software\\PkaizenForge\\Backups\\Transparency', backup)) }
+  })
+  try {
+    for (const initial of [null, 0, 1, 7]) {
+      await execute(`if (Test-Path '${root}') { Remove-Item '${root}' -Recurse }; New-Item '${key}' -Force | Out-Null`)
+      if (initial !== null) await execute(`New-ItemProperty '${key}' -Name EnableTransparency -Value ${initial} -PropertyType DWord | Out-Null`)
+      assert.equal((await engine.applyTweak('transparency-off')).ok, true)
+      assert.equal((await engine.applyTweak('transparency-off')).ok, true, 'Reapply must preserve the first backup')
+      const reverted = await engine.revertTweak('transparency-off')
+      assert.equal(reverted.ok, true, reverted.message)
+      assert.equal(await execute(`$item=Get-Item '${key}'; if ($item.GetValueNames() -contains 'EnableTransparency') { $item.GetValue('EnableTransparency') } else { 'absent' }`), initial === null ? 'absent' : String(initial))
+      assert.equal(await execute(`Test-Path '${backup}'`), 'False')
+    }
+    assert.equal((await engine.revertTweak('transparency-off')).ok, false, 'Must not guess a missing backup')
+    await execute(`New-ItemProperty '${key}' -Name EnableTransparency -Value 'custom' -PropertyType String -Force | Out-Null`)
+    assert.equal((await engine.applyTweak('transparency-off')).ok, false)
+    assert.equal(await execute(`(Get-Item '${key}').GetValue('EnableTransparency')`), 'custom')
+  } finally {
+    await execute(`if (Test-Path '${root}') { Remove-Item '${root}' -Recurse }`)
+  }
+})
+
+test('gaming CSV accepts raw PresentMon and decimal-comma frame times without estimating FPS', () => {
+  const { parseCapture, summarizeFrames } = gaming()
+  const csv = '\uFEFFApplication,ProcessID,SwapChainAddress,MsBetweenPresents\r\n' +
+    Array.from({ length: 120 }, () => '"Game, Edition.exe",42,0x1,10').join('\r\n')
+  const capture = parseCapture(csv)
+  assert.equal(capture.frames.length, 120)
+  assert.equal(summarizeFrames(capture.frames).averageFps, 100)
+  for (const separator of [';', '\t']) {
+    const decimal = 'FrameTime (ms)' + separator + 'Other\n' + Array.from({ length: 120 }, () => `12,5${separator}x`).join('\n')
+    assert.equal(summarizeFrames(parseCapture(decimal).frames).averageFps, 80)
+  }
+  assert.equal(parseCapture('frametime_ms\n' + Array(120).fill('20').join('\n')).frames[0], 20)
+})
+
+test('gaming capture rejects unsupported, mixed, malformed, negative and oversized data', () => {
+  const { parseCapture, MAX_CAPTURE_FRAMES, MAX_CAPTURE_BYTES } = gaming()
+  const fail = (text, code) => assert.throws(() => parseCapture(text), (error) => error.code === code)
+  fail('AverageFPS\n144', 'column')
+  fail('TimeInSeconds\n0.01', 'column')
+  fail('MsBetweenPresents,Frametime\n10,10', 'column')
+  for (const value of ['0', '-1', 'NaN', 'Infinity', '0x10', '', '12ms']) {
+    fail(`FrameTime (ms),Other\n${value},x`, 'value')
+  }
+  fail('FrameTime (ms),Other\n10', 'format')
+  fail('FrameTime (ms)\n"10', 'format')
+  fail('Application,MsBetweenPresents\nA,10\nB,10', 'mixed')
+  fail('ProcessID,SwapChainAddress,MsBetweenPresents\n1,0x1,10\n1,0x2,10', 'mixed')
+  fail('FrameTime (ms)\n10', 'short')
+  fail('FrameTime (ms)\n' + Array(MAX_CAPTURE_FRAMES + 1).fill('10').join('\n'), 'size')
+  fail('x'.repeat(MAX_CAPTURE_BYTES + 1), 'size')
+  fail('\n'.repeat(MAX_CAPTURE_FRAMES + 2), 'size')
+})
+
+test('gaming metrics use total time, slowest-one-percent mean, nearest-rank p99 and exact thresholds', () => {
+  const { summarizeFrames, targetCoverage, frameBuckets } = gaming()
+  const frames = [...Array(990).fill(10), ...Array(10).fill(100)]
+  const stats = summarizeFrames(frames)
+  assert.equal(stats.durationSeconds, 10.9)
+  assert.equal(stats.averageFps, 1000000 / 10900)
+  assert.equal(stats.low1Fps, 10)
+  assert.equal(stats.p99Ms, 10)
+  assert.equal(stats.maxMs, 100)
+  assert.equal(stats.over50, 10)
+  assert.equal(stats.over100, 0)
+  assert.equal(targetCoverage(frames, 100), 99)
+  assert.equal(targetCoverage(frames, 120), 0)
+  assert.equal(targetCoverage(Array(120).fill(1000 / 144), 144), 100)
+  assert.throws(() => targetCoverage(frames, 0))
+  assert.throws(() => summarizeFrames(Array(120).fill(NaN)))
+  const chart = frameBuckets([...Array(999).fill(10), 250])
+  assert.ok(chart.length <= 100)
+  assert.equal(Math.max(...chart), 250)
+})
+
+test('gaming sessions validate saved shape and never compare different games, scenes or generated frames', () => {
+  const { validSession, summarizeFrames, sameScenario } = gaming()
+  const context = { game: 'Game', resolution: '1920x1080', scene: 'Route', settings: 'Medium', frameGeneration: 'off' }
+  const session = { version: 1, date: new Date().toISOString(), context, summary: summarizeFrames(Array(4000).fill(10)) }
+  assert.ok(validSession(session))
+  assert.equal(validSession({ ...session, date: 'invalid' }), false)
+  assert.equal(validSession({ ...session, summary: { ...session.summary, low1Fps: 99999 } }), false)
+  assert.equal(validSession({ ...session, context: { ...context, frameGeneration: 'maybe' } }), false)
+  assert.equal(validSession({ ...session, summary: { ...session.summary, count: 100 } }), false)
+  assert.ok(sameScenario(context, { ...context, settings: 'Low' }))
+  for (const change of [{ game: 'Different' }, { resolution: '2560x1440' }, { scene: 'Other' }, { frameGeneration: 'on' }]) {
+    assert.equal(sameScenario(context, { ...context, ...change }), false)
+  }
+})
+
+test('screen advice is conservative, excludes short or generated captures, and never extrapolates resolution', () => {
+  const { assessDisplay, summarizeFrames, gameGuide } = gaming()
+  const display = { resX: 1920, resY: 1080, hz: 60 }
+  const session = (fps, game = 'Game') => ({
+    version: 1, date: new Date().toISOString(),
+    context: { game, resolution: '1920 × 1080', settings: 'Medium', scene: 'Route', frameGeneration: 'off' },
+    summary: summarizeFrames(Array(6000).fill(1000 / fps))
+  })
+  assert.equal(assessDisplay({ ...display, hz: 0 }, [session(144)]).kind, 'unknown')
+  assert.equal(assessDisplay(display, []).kind, 'no-data')
+  for (const context of [{ resolution: '2560x1440' }, { frameGeneration: 'on' }, { frameGeneration: 'unknown' }]) {
+    const sample = session(144)
+    sample.context = { ...sample.context, ...context }
+    assert.equal(assessDisplay(display, [sample]).kind, 'no-data')
+  }
+  const short = session(144)
+  short.summary = summarizeFrames(Array(120).fill(10))
+  assert.equal(assessDisplay(display, [short]).kind, 'no-data')
+  assert.equal(assessDisplay(display, [session(120)]).suggestedHz, 120)
+  assert.equal(assessDisplay(display, [session(45)]).kind, 'limited')
+  assert.equal(assessDisplay(display, [session(60)]).kind, 'balanced')
+  const advice = assessDisplay(display, [session(144, 'A'), session(165, 'B'), session(120, 'C'), session(240, 'A')])
+  assert.equal(advice.games, 3)
+  assert.equal(advice.suggestedHz, 120)
+  assert.equal(assessDisplay(display, [session(240), session(40, 'Slow game')]).kind, 'limited')
+  assert.equal(gameGuide('Grand Theft Auto V Enhanced').id, 'gta')
+  assert.equal(gameGuide('Cyberpunk 2077').id, 'cyberpunk')
+  assert.equal(gameGuide('Unlisted Game').id, 'other')
+})
+
+test('installed games parse Steam and Epic manifests without trusting incomplete or traversal paths', () => {
+  const { steamGame, epicGame, vdfPairs } = load('src/main/system/games.ts', { './powershell': {} })
+  const manifest = '"AppState" { "appid" "730" "name" "Counter-Strike 2" "StateFlags" "4" "installdir" "Counter-Strike Global Offensive" }'
+  assert.equal(steamGame(manifest, 'C:\\Steam').name, 'Counter-Strike 2')
+  assert.equal(steamGame(manifest.replace('"4"', '"2"'), 'C:\\Steam'), null)
+  assert.equal(steamGame(manifest.replace('"Counter-Strike Global Offensive"', '"..\\\\Windows"'), 'C:\\Steam'), null)
+  assert.equal(vdfPairs('"path" "D:\\\\SteamLibrary"')[0][1], 'D:\\SteamLibrary')
+  const epic = { DisplayName: 'Fortnite', AppName: 'Fortnite', InstallLocation: 'C:\\Games\\Fortnite', bIsIncompleteInstall: false }
+  assert.equal(epicGame(JSON.stringify(epic)).launcher, 'Epic Games')
+  assert.equal(epicGame(JSON.stringify({ ...epic, bIsIncompleteInstall: true })), null)
+  assert.equal(epicGame(JSON.stringify({ ...epic, InstallLocation: '\\\\server\\share' })), null)
+  assert.throws(() => epicGame('{broken'))
+})
+
+test('installed game discovery checks actual folders, extra Steam drives, Epic and partial failures', { skip: process.platform !== 'win32' }, async () => {
+  const fs = require('node:fs/promises')
+  const { tmpdir } = require('node:os')
+  const { join } = require('node:path')
+  const root = await fs.mkdtemp(join(tmpdir(), 'pkaizen-games-test-'))
+  try {
+    const steam = join(root, 'Steam')
+    const second = join(root, 'Second')
+    const epic = join(root, 'Epic', 'EpicGamesLauncher', 'Data', 'Manifests')
+    await fs.mkdir(join(steam, 'steamapps'), { recursive: true })
+    await fs.mkdir(join(second, 'steamapps', 'common', 'Test'), { recursive: true })
+    await fs.mkdir(epic, { recursive: true })
+    await fs.writeFile(join(steam, 'steamapps', 'libraryfolders.vdf'), `"libraryfolders" { "1" { "path" "${second.replaceAll('\\', '\\\\')}" } }`)
+    await fs.writeFile(join(second, 'steamapps', 'appmanifest_42.acf'), '"appid" "42" "name" "Installed" "StateFlags" "4" "installdir" "Test"')
+    await fs.writeFile(join(second, 'steamapps', 'appmanifest_43.acf'), '"appid" "43" "name" "Stale" "StateFlags" "4" "installdir" "Missing"')
+    await fs.writeFile(join(epic, 'game.item'), JSON.stringify({ AppName: 'Test', DisplayName: 'Epic game', InstallLocation: second }))
+    await fs.writeFile(join(epic, 'broken.item'), '{invalid')
+    const { getInstalledGames } = load('src/main/system/games.ts', {
+      './powershell': { ps: async () => steam }
+    }, { process: { env: { ProgramData: root } }, console: { error() {} } })
+    const result = await getInstalledGames()
+    assert.deepEqual(Array.from(result.games, (game) => game.name), ['Epic game', 'Installed'])
+    assert.equal(result.warnings.length, 1)
+    assert.match(result.warnings[0], /broken.item/)
+  } finally { await fs.rm(root, { recursive: true, force: true }) }
+})
+
 test('system queue serializes probes and recovers after rejection', async () => {
   const { runSystemTask } = load('src/main/system/powershell.ts')
   let active = 0
@@ -158,6 +371,45 @@ test('GPU benchmark skips unsupported WebGL without inventing a score', async ()
   const { runGpuBench } = load('src/renderer/src/lib/benchmark.ts')
   const result = await runGpuBench({ getContext: () => null }, new AbortController().signal)
   assert.equal(result.fps, null)
+  assert.equal(result.gpuMs, null)
+})
+
+test('Forge GPU timing uses timer queries, rejects disjoint clocks, and releases every query', async () => {
+  for (const mode of ['measured', 'unsupported', 'disjoint', 'invalid']) {
+    let clock = 0
+    let queries = 0
+    let deleted = 0
+    let lost = false
+    const ext = { TIME_ELAPSED_EXT: 100, GPU_DISJOINT_EXT: 101 }
+    const gl = {
+      VERTEX_SHADER: 1, FRAGMENT_SHADER: 2, COMPILE_STATUS: 3, LINK_STATUS: 4,
+      ARRAY_BUFFER: 5, STATIC_DRAW: 6, FLOAT: 7, QUERY_RESULT_AVAILABLE: 8, QUERY_RESULT: 9,
+      COLOR_BUFFER_BIT: 10, TRIANGLES: 11, SYNC_GPU_COMMANDS_COMPLETE: 12, WAIT_FAILED: 13, TIMEOUT_EXPIRED: 14,
+      getExtension: (name) => name === 'EXT_disjoint_timer_query_webgl2' ? mode === 'unsupported' ? null : ext :
+        name === 'WEBGL_lose_context' ? { loseContext: () => { lost = true } } : null,
+      getParameter: () => mode === 'disjoint',
+      createProgram: () => ({}), createBuffer: () => ({}), createShader: () => ({}),
+      createQuery: () => { queries++; return {} },
+      deleteQuery: () => { deleted++ },
+      getQueryParameter: (_query, parameter) => parameter === 8 ? true : mode === 'invalid' ? NaN : 2_000_000,
+      getShaderParameter: () => true, getProgramParameter: () => true,
+      getAttribLocation: () => 0, getUniformLocation: () => ({}),
+      isContextLost: () => false, clientWaitSync: () => 15, fenceSync: () => ({})
+    }
+    for (const name of ['shaderSource', 'compileShader', 'attachShader', 'linkProgram', 'useProgram', 'bindBuffer',
+      'bufferData', 'enableVertexAttribArray', 'vertexAttribPointer', 'viewport', 'clearColor', 'clear', 'uniform1f',
+      'beginQuery', 'endQuery', 'drawArrays', 'flush', 'deleteSync', 'deleteShader', 'deleteBuffer', 'deleteProgram']) {
+      gl[name] = () => {}
+    }
+    const { runGpuBench } = load('src/renderer/src/lib/benchmark.ts', {}, {
+      performance: { now: () => { clock += 16; return clock } },
+      setTimeout: (fn) => setTimeout(fn, 0)
+    })
+    const result = await runGpuBench({ getContext: () => gl, width: 1280, height: 720 }, new AbortController().signal)
+    assert.equal(result.gpuMs, mode === 'measured' ? 2 : null)
+    assert.equal(queries, deleted)
+    assert.ok(lost)
+  }
 })
 
 test('Windows identity uses native build when WMI is empty or stale and preserves Server editions', () => {
@@ -287,18 +539,141 @@ test('temporary cleanup preserves recent files and directory links and never sto
   assert.ok(scripts.every((script) => !/Stop-Service|SoftwareDistribution/.test(script)))
 })
 
-test('driver installation reports partial failure instead of counting requested updates as installed', async () => {
-  const { installDriverUpdates } = load('src/main/system/updater.ts', {
+test('driver assistants match mixed components and reject unsupported selections and signatures', async () => {
+  let signature = { status: 'Valid', publisher: 'Intel Corporation' }
+  let machine = { manufacturer: 'ASUSTeK COMPUTER INC.', model: 'Test laptop' }
+  let graphics = { controllers: [{ vendor: 'NVIDIA', model: 'GeForce RTX 4060' }] }
+  const installers = load('src/main/system/driverInstallers.ts', {
     './i18n': { T: (english) => english },
-    './powershell': { psJson: async (script) => {
-      assert.match(script, /GetUpdateResult\(\$index\)\.ResultCode -eq 2/)
-      return { installed: 1, requested: 2, reboot: true, status: 'Partial failure' }
+    os: { platform: () => 'win32', arch: () => 'x64', release: () => '10.0.26200.0' },
+    './hardware': { __esModule: true, default: {
+      graphics: async () => graphics,
+      cpu: async () => ({ brand: 'AMD Ryzen 7 7800X3D', manufacturer: 'AMD' }),
+      system: async () => machine
+    } },
+    './drivers': { scanDrivers: async () => [{ device: 'Intel Wi-Fi 6', provider: 'Intel', className: 'NET' }] },
+    './powershell': { ps: async (script, timeout, strict) => {
+      assert.equal(strict, true)
+      assert.match(script, /Get-AuthenticodeSignature -LiteralPath/)
+      return JSON.stringify(signature)
     } }
   })
-  const result = await installDriverUpdates(['first', 'second'])
+  assert.equal((await installers.getDriverInstallers()).map(option => option.id).join(','), 'asus,nvidia,amd,intel')
+  machine = { manufacturer: 'Custom PC', model: 'Desktop' }
+  graphics = { controllers: [{ vendor: 'NVIDIA', model: 'GeForce GTX 750' }] }
+  assert.equal((await installers.getDriverInstallers()).map(option => option.id).join(','), 'amd,intel')
+  assert.equal((await installers.launchDriverInstaller('nvidia')).ok, false)
+  assert.equal((await installers.launchDriverInstaller('__proto__')).ok, false)
+  await installers.verifyDriverSignature('fixture.exe', ['Intel Corporation'])
+  signature = { status: 'Valid', publisher: 'Unrelated publisher' }
+  await assert.rejects(installers.verifyDriverSignature('fixture.exe', ['Intel Corporation']))
+  signature = { status: 'HashMismatch', publisher: 'Intel Corporation' }
+  await assert.rejects(installers.verifyDriverSignature('fixture.exe', ['Intel Corporation']))
+})
+
+test('driver installer URLs come from official pages and all redirects remain allowlisted', async () => {
+  let malicious = false
+  const calls = []
+  const installers = load('src/main/system/driverInstallers.ts', {
+    './i18n': { T: (english) => english }, './hardware': {}, './drivers': {}, './powershell': {}
+  }, { URL, AbortSignal, fetch: async (url) => {
+    calls.push(url)
+    if (malicious) return new Response(null, { status: 302, headers: { location: 'https://amd.com.attacker.test/setup.exe' } })
+    return new Response('<a href="https://attacker.test/minimalsetup.exe">Bad</a><a href="https://drivers.amd.com/drivers/installer/26/amd-minimalsetup_web.exe">Download</a>')
+  } })
+  const url = await installers.resolveDriverInstaller('amd', AbortSignal.timeout(1000))
+  assert.equal(url, 'https://drivers.amd.com/drivers/installer/26/amd-minimalsetup_web.exe')
+  assert.equal(installers.isOfficialDownload(new URL('https://user:pass@amd.com/file.exe'), ['amd.com']), false)
+  malicious = true
+  await assert.rejects(installers.fetchOfficialDownload(url, ['amd.com'], AbortSignal.timeout(1000)), /unofficial source/)
+  assert.equal(calls.length, 2)
+})
+
+test('browser detection handles suffixed IDs, executable identity and separate protocol defaults', async () => {
+  const browser = load('src/main/system/browser.ts', {
+    './i18n': { T: (english) => english },
+    './powershell': {
+      asArray: (value) => value == null ? [] : Array.isArray(value) ? value : [value],
+      psJson: async (script) => {
+        assert.match(script, /AssocQueryString/)
+        assert.match(script, /Read-Association 'https'/)
+        assert.match(script, /RegisteredApplications/)
+        return { http: { progId: 'BraveHTML.ABC' }, https: { progId: 'VivaldiHTM.XYZ' }, installed: ['Opera GX Stable', 'Firefox'], running: [] }
+      }
+    }
+  })
+  for (const [value, expected] of [['BraveHTML.ABC', 'brave'], ['VivaldiHTM.XYZ', 'vivaldi'], ['FirefoxURL-123', 'firefox'], ['MSEdgeHTM', 'edge'], ['Opera GX Stable', 'operagx'], ['Unknown', null]]) {
+    assert.equal(browser.identifyBrowser(value), expected)
+  }
+  assert.equal(browser.identifyBrowser('FirefoxURL-123', '"C:\\Program Files\\LibreWolf\\librewolf.exe" "%1"'), 'librewolf')
+  const report = await browser.getBrowserReport()
+  assert.equal(report.defaultBrowser, 'vivaldi')
+  assert.equal(report.defaults.http, 'brave')
+  assert.equal(report.defaults.https, 'vivaldi')
+  assert.ok(report.installed.includes('operagx'))
+  assert.ok(report.installed.includes('vivaldi'))
+  assert.ok(!report.installed.includes('edge'))
+})
+
+test('driver search excludes hidden updates and distinguishes errors from no applicable drivers', async () => {
+  let output = '[]'
+  const { searchDriverUpdates } = load('src/main/system/updater.ts', {
+    './i18n': { T: (english) => english },
+    './powershell': { ps: async (script, timeout, strict) => {
+      assert.equal(strict, true)
+      assert.match(script, /IsInstalled=0 and IsHidden=0 and Type='Driver'/)
+      assert.match(script, /\$searcher.Online = \$true/)
+      assert.match(script, /\$result.ResultCode -ne 2/)
+      assert.match(script, /\$u.DriverClass -eq 'Firmware'/)
+      if (output === 'offline') throw new Error('Windows Update unavailable')
+      return output
+    } }
+  })
+  assert.equal((await searchDriverUpdates()).length, 0)
+  output = JSON.stringify([{ id: 'device-update', title: 'Applicable driver' }])
+  assert.equal((await searchDriverUpdates())[0].id, 'device-update')
+  for (const invalid of ['', 'null', '{}', '[{}]', 'offline']) {
+    output = invalid
+    await assert.rejects(searchDriverUpdates())
+  }
+})
+
+test('driver installation reports partial failure instead of counting requested updates as installed', async () => {
+  const ids = ['11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222']
+  let calls = 0
+  let failure = false
+  const { installDriverUpdates } = load('src/main/system/updater.ts', {
+    './i18n': { T: (english) => english },
+    './powershell': { ps: async (script, timeout, strict) => {
+      calls++
+      assert.equal(strict, true)
+      assert.match(script, /\$item.ResultCode -eq 2/)
+      assert.match(script, /\$update.IsDownloaded/)
+      assert.match(script, /\$installer.Updates = \$ready/)
+      assert.match(script, /RebootRequiredBeforeInstallation/)
+      assert.match(script, /IsHidden=0/)
+      assert.match(script, /\$u.DriverClass -ne 'Firmware'/)
+      assert.doesNotMatch(script, /shutdown|pnputil|ForceInstall/)
+      if (failure) throw new Error('Service disabled')
+      return JSON.stringify({ installed: 1, requested: 2, reboot: true, results: [
+        { id: ids[0], title: 'Network driver', ok: true, message: 'Result: 2' },
+        { id: ids[1], title: 'Audio driver', ok: false, message: 'Download HRESULT: 0x80070005' }
+      ] })
+    } }
+  })
+  for (const invalid of [[], ['first'], ["'; shutdown /r"], null]) {
+    assert.equal((await installDriverUpdates(invalid)).ok, false)
+  }
+  assert.equal(calls, 0)
+  const result = await installDriverUpdates([...ids, ids[0]])
   assert.equal(result.ok, false)
   assert.equal(result.installed, 1)
   assert.equal(result.rebootRequired, true)
+  assert.equal(result.results[1].ok, false)
+  failure = true
+  const failed = await installDriverUpdates(ids)
+  assert.match(failed.message, /Service disabled/)
+  assert.doesNotMatch(failed.message, /admin/i)
 })
 
 test('NVIDIA downloader checks each redirect and rejects lookalike or insecure domains', async () => {
@@ -358,12 +733,42 @@ test('startup changes verify backups before removal and surface write errors', a
   assert.match(result.message, /Backup write denied/)
 })
 
+test('browser association query executes on Windows without changing settings', { skip: process.platform !== 'win32' }, async () => {
+  const powershell = load('src/main/system/powershell.ts')
+  const { getBrowserReport } = load('src/main/system/browser.ts', {
+    './i18n': { T: (english) => english }, './powershell': powershell
+  })
+  const report = await getBrowserReport()
+  assert.ok(Array.isArray(report.installed))
+  assert.ok(Object.hasOwn(report.defaults, 'http'))
+  assert.ok(Object.hasOwn(report.defaults, 'https'))
+})
+
+test('browser defaults use registered Windows settings and never claim to change protected associations', async () => {
+  const opened = []
+  const { openBrowserDefaults } = load('src/main/system/browser.ts', {
+    './i18n': { T: (english) => english },
+    electron: { shell: { openExternal: async (url) => opened.push(url) } },
+    os: { release: () => '10.0.26200.0' },
+    './powershell': {
+      asArray: (value) => value || [],
+      psJson: async () => ({ http: {}, https: {}, installed: ['Vivaldi'], running: [], registrations: [{ name: 'Vivaldi.ABC', identity: 'VivaldiHTM.ABC', scope: 'user' }] })
+    }
+  })
+  const result = await openBrowserDefaults('vivaldi')
+  assert.equal(result.ok, true)
+  assert.match(result.message, /Confirm/)
+  assert.equal(opened[0], 'ms-settings:defaultapps?registeredAppUser=Vivaldi.ABC')
+  assert.equal((await openBrowserDefaults('unknown')).ok, false)
+  assert.equal(opened.length, 1)
+})
+
 test('browser detection does not invent an Edge installation', async () => {
   const { getBrowserReport, installBrowser } = load('src/main/system/browser.ts', {
     './i18n': { T: (english) => english },
     './powershell': {
       asArray: (value) => Array.isArray(value) ? value : value == null ? [] : [value],
-      psJson: async () => ({ progId: 'FirefoxURL', installed: ['Firefox'], running: [] }),
+      psJson: async () => ({ http: { progId: 'FirefoxURL' }, https: { progId: 'FirefoxURL' }, installed: ['Firefox'], running: [] }),
       ps: async () => { throw new Error('Must not execute an unknown package') }
     }
   })

@@ -114,6 +114,14 @@ export interface VendorLink {
   why: string
 }
 
+export interface DriverInstaller {
+  id: string
+  name: string
+  hardware: string
+  kind: 'installer' | 'store'
+  note: string
+}
+
 export interface WuDriverUpdate {
   title: string
   driverClass: string
@@ -128,6 +136,7 @@ export interface WuInstallResult {
   rebootRequired: boolean
   installed: number
   message?: string
+  results?: { id: string; title: string; ok: boolean; message: string }[]
 }
 
 export interface GpuDriverStatus {
@@ -203,6 +212,8 @@ export interface SpeedResult {
 
 export interface BrowserReport {
   defaultBrowser: string | null
+  defaults?: { http: string | null; https: string | null }
+  registrations?: { id: string; name: string; scope: 'user' | 'machine' }[]
   installed: string[]
   running: { id: string; name: string; ramMB: number }[]
 }
@@ -217,6 +228,18 @@ export interface DiskBenchResult {
   writeMBps: number
   readMBps: number
   sizeMB: number
+}
+
+export interface InstalledGame {
+  id: string
+  name: string
+  launcher: 'Steam' | 'Epic Games'
+  installPath: string
+}
+
+export interface GameLibrary {
+  games: InstalledGame[]
+  warnings: string[]
 }
 
 export interface DetailedInfo {

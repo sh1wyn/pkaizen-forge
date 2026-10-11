@@ -1,21 +1,25 @@
-import { ps, psJson, asArray } from './powershell'
+import { ps } from './powershell'
 import { T } from './i18n'
 import type { ActionResult, WuDriverUpdate, WuInstallResult } from '../../shared/types'
 
 /**
  * Installation de pilotes via l'API COM officielle Windows Update Agent.
- * Uniquement des pilotes signés distribués par Microsoft — aucun risque anticheat.
+ * Pilotes proposés pour le matériel par le service Windows Update configuré.
  * Pkaizen Forge n'installe JAMAIS de pilotes depuis des sources non officielles.
  */
 
 export async function searchDriverUpdates(): Promise<WuDriverUpdate[]> {
-  const raw = await psJson<WuDriverUpdate | WuDriverUpdate[]>(
+  const output = await ps(
     `
+    $ErrorActionPreference='Stop'
     $session = New-Object -ComObject Microsoft.Update.Session
     $searcher = $session.CreateUpdateSearcher()
-    $result = $searcher.Search("IsInstalled=0 and Type='Driver'")
+    $searcher.Online = $true
+    $result = $searcher.Search("IsInstalled=0 and IsHidden=0 and Type='Driver'")
+    if ($result.ResultCode -ne 2) { throw "Windows Update search failed: $($result.ResultCode)" }
     $list = @()
     foreach ($u in $result.Updates) {
+      if ($u.DriverClass -eq 'Firmware') { continue }
       $sizeMB = [math]::Round($u.MaxDownloadSize / 1MB, 1)
       $list += [pscustomobject]@{
         title    = $u.Title
@@ -28,53 +32,92 @@ export async function searchDriverUpdates(): Promise<WuDriverUpdate[]> {
     }
     ConvertTo-Json -InputObject @($list) -Depth 3
     `,
-    300000
+    300000,
+    true
   )
-  return asArray(raw).filter((u) => u && u.title)
+  const raw: unknown = JSON.parse(output)
+  if (!Array.isArray(raw) || raw.some((update) => !update || typeof update.id !== 'string' || typeof update.title !== 'string')) {
+    throw new Error('Invalid Windows Update search response')
+  }
+  return raw as WuDriverUpdate[]
 }
 
 export async function installDriverUpdates(ids: string[]): Promise<WuInstallResult> {
-  if (ids.length === 0) return { ok: false, rebootRequired: false, installed: 0, message: 'Aucun pilote sélectionné.' }
-  const idFilter = ids.map((i) => `'${i.replace(/'/g, '')}'`).join(',')
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 200 || ids.some((id) =>
+    typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) {
+    return { ok: false, rebootRequired: false, installed: 0, message: T('Invalid driver selection.', 'Sélection de pilotes invalide.') }
+  }
+  const idFilter = [...new Set(ids)].map((id) => `'${id}'`).join(',')
   try {
-      const raw = await psJson<{ installed: number; requested: number; reboot: boolean; status: string }>(
+    const output = await ps(
       `
       $ErrorActionPreference='Stop'
       $wanted = @(${idFilter})
       $session = New-Object -ComObject Microsoft.Update.Session
       $searcher = $session.CreateUpdateSearcher()
-      $result = $searcher.Search("IsInstalled=0 and Type='Driver'")
+      $searcher.Online = $true
+      $result = $searcher.Search("IsInstalled=0 and IsHidden=0 and Type='Driver'")
+      if ($result.ResultCode -ne 2) { throw "Windows Update search failed: $($result.ResultCode)" }
       $coll = New-Object -ComObject Microsoft.Update.UpdateColl
       foreach ($u in $result.Updates) {
-        if ($wanted -contains $u.Identity.UpdateID) {
+        if ($wanted -contains $u.Identity.UpdateID -and $u.DriverClass -ne 'Firmware') {
           if (-not $u.EulaAccepted) { $u.AcceptEula() }
           $coll.Add($u) | Out-Null
         }
       }
-      if ($coll.Count -eq 0) {
-        ConvertTo-Json @{ installed = 0; reboot = $false; status = 'Aucun pilote correspondant.' }
-        return
-      }
-      $downloader = $session.CreateUpdateDownloader()
-      $downloader.Updates = $coll
-      $downloader.Download() | Out-Null
       $installer = $session.CreateUpdateInstaller()
-      $installer.Updates = $coll
-      $r = $installer.Install()
-      $installed = 0
-      for ($index = 0; $index -lt $coll.Count; $index++) {
-        if ($r.GetUpdateResult($index).ResultCode -eq 2) { $installed++ }
+      if ($installer.IsBusy) { throw 'Windows Update installer is busy.' }
+      if ($installer.RebootRequiredBeforeInstallation) { throw 'Windows must restart before installing drivers.' }
+      $details = @()
+      foreach ($id in $wanted) {
+        if (-not (@($coll | ForEach-Object { $_.Identity.UpdateID }) -contains $id)) {
+          $details += @{ id = $id; title = $id; ok = $false; message = 'No longer offered by Windows Update.' }
+        }
       }
-      ConvertTo-Json @{ installed = $installed; requested = $wanted.Count; reboot = [bool]$r.RebootRequired; status = "$installed/$($wanted.Count) installed; result: $($r.ResultCode)" }
+      $ready = New-Object -ComObject Microsoft.Update.UpdateColl
+      if ($coll.Count -gt 0) {
+        $downloader = $session.CreateUpdateDownloader()
+        $downloader.Updates = $coll
+        $download = $downloader.Download()
+        for ($index = 0; $index -lt $coll.Count; $index++) {
+          $update = $coll.Item($index)
+          if ($update.IsDownloaded) {
+            $ready.Add($update) | Out-Null
+          } else {
+            $details += @{ id = $update.Identity.UpdateID; title = $update.Title; ok = $false; message = ('Download HRESULT: 0x{0:X8}' -f $download.GetUpdateResult($index).HResult) }
+          }
+        }
+      }
+      $installed = 0
+      $reboot = $false
+      if ($ready.Count -gt 0) {
+        $installer.Updates = $ready
+        $r = $installer.Install()
+        $reboot = [bool]$r.RebootRequired
+        for ($index = 0; $index -lt $ready.Count; $index++) {
+          $update = $ready.Item($index)
+          $item = $r.GetUpdateResult($index)
+          $ok = $item.ResultCode -eq 2
+          if ($ok) { $installed++ }
+          $reboot = $reboot -or [bool]$item.RebootRequired
+          $details += @{ id = $update.Identity.UpdateID; title = $update.Title; ok = $ok; message = ('Result: {0}; HRESULT: 0x{1:X8}' -f $item.ResultCode, $item.HResult) }
+        }
+      }
+      ConvertTo-Json @{ installed = $installed; requested = $wanted.Count; reboot = $reboot; results = @($details) } -Depth 4
       `,
-      1800000
+      1800000,
+      true
     )
-    if (!raw) return { ok: false, rebootRequired: false, installed: 0, message: 'Réponse vide de Windows Update.' }
+    const raw = JSON.parse(output) as { installed: number; requested: number; reboot: boolean; results: NonNullable<WuInstallResult['results']> }
+    if (!raw || !Array.isArray(raw.results) || !Number.isInteger(raw.installed) || raw.requested !== new Set(ids).size) {
+      throw new Error('Invalid Windows Update installation response')
+    }
     return {
       ok: raw.installed > 0 && raw.installed === raw.requested,
       rebootRequired: raw.reboot,
       installed: raw.installed,
-      message: raw.status
+      results: raw.results,
+      message: T(`${raw.installed}/${raw.requested} drivers installed.`, `${raw.installed}/${raw.requested} pilotes installés.`)
     }
   } catch (e) {
     return {
@@ -82,7 +125,7 @@ export async function installDriverUpdates(ids: string[]): Promise<WuInstallResu
       rebootRequired: false,
       installed: 0,
       message:
-        'Échec (droits administrateur requis pour installer des pilotes). ' + (e as Error).message
+        T('Driver installation failed: ', 'Échec de l’installation des pilotes : ') + (e as Error).message
     }
   }
 }

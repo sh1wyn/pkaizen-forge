@@ -34,6 +34,18 @@ for (const [lang, keys] of Object.entries(langBlocks)) {
   if (missing.length) fail(`[i18n] ${lang} : ${missing.length} clés manquantes → ${missing.join(', ')}`)
   if (extra.length) fail(`[i18n] ${lang} : clés en trop → ${extra.join(', ')}`)
 }
+const featureSource = readFileSync(join(root, 'src/renderer/src/lib/features-i18n.ts'), 'utf8')
+const featureBlocks = featureSource.split('const fr:')
+const featureKeys = (source) => new Set([...source.matchAll(/'([a-z]+\.[a-zA-Z0-9]+)':/g)].map((match) => match[1]))
+const featureEn = featureKeys(featureBlocks[0])
+const featureFr = featureKeys(featureBlocks[1] ?? '')
+for (const key of featureEn) {
+  if (!featureFr.has(key)) fail(`[i18n] feature FR missing: ${key}`)
+  if (enKeys.has(key)) fail(`[i18n] duplicate feature key: ${key}`)
+  enKeys.add(key)
+}
+for (const key of featureFr) if (!featureEn.has(key)) fail(`[i18n] feature FR extra: ${key}`)
+console.log(`${featureEn.size} feature keys: EN/FR, explicit English fallback for other languages`)
 
 /* ---- 2. Clés utilisées dans les pages → existent en EN ---- */
 const usedKeys = new Set()

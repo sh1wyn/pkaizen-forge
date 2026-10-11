@@ -3,6 +3,8 @@ import type { DiskBenchResult } from '../../../shared/types'
 import { useI18n } from '../lib/i18n'
 import { useToast } from '../components/Toast'
 import { benchmarkThreads, runCpuWorkers, runGpuBench } from '../lib/benchmark'
+import GamingBenchmark from '../components/GamingBenchmark'
+import BenchmarkReferences from '../components/BenchmarkReferences'
 
 interface BenchRun {
   date: string
@@ -11,6 +13,7 @@ interface BenchRun {
   writeMBps: number
   readMBps: number
   gpuFps: number | null
+  gpuMs?: number | null
   threads: number
   renderer: string
   score: number
@@ -24,11 +27,13 @@ function validRun(value: unknown): value is BenchRun {
   return typeof run.date === 'string' && typeof run.renderer === 'string' &&
     [run.cpuSingle, run.cpuMulti, run.writeMBps, run.readMBps, run.score, run.threads]
       .every((number) => Number.isFinite(number) && number >= 0) &&
-    (run.gpuFps === null || (Number.isFinite(run.gpuFps) && run.gpuFps >= 0))
+    (run.gpuFps === null || (Number.isFinite(run.gpuFps) && run.gpuFps >= 0)) &&
+    (run.gpuMs == null || (Number.isFinite(run.gpuMs) && run.gpuMs > 0))
 }
 
 export default function Benchmark(): React.JSX.Element {
   const { t } = useI18n()
+  const [view, setView] = useState<'local' | 'games' | 'references'>('local')
   const [phase, setPhase] = useState<'idle' | 'cpu1' | 'cpuN' | 'disk' | 'gpu'>('idle')
   const [gpuName, setGpuName] = useState('')
   const [result, setResult] = useState<BenchRun | null>(null)
@@ -42,7 +47,9 @@ export default function Benchmark(): React.JSX.Element {
     try {
       const saved: unknown = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
       setHistory(Array.isArray(saved) ? saved.filter(validRun).slice(0, 10) : [])
-    } catch {
+    } catch (error) {
+      console.error('[Pkaizen] Benchmark history:', error)
+      toast(t('forge.historyError'), 'error')
       setHistory([])
     }
     const cancelWhenHidden = (): void => {
@@ -75,16 +82,20 @@ export default function Benchmark(): React.JSX.Element {
       signal.throwIfAborted()
       setPhase('disk')
       const disk: DiskBenchResult = await window.api.diskBench()
+      if (![disk.readMBps, disk.writeMBps].every((value) => Number.isFinite(value) && value > 0)) {
+        throw new Error('Invalid disk benchmark throughput')
+      }
       signal.throwIfAborted()
       setPhase('gpu')
       const canvas = canvasRef.current
       if (!canvas) throw new Error('Benchmark canvas unavailable')
-      canvas.width = 800
-      canvas.height = 500
+      canvas.width = 1280
+      canvas.height = 720
       const gpu = await runGpuBench(canvas, signal)
       signal.throwIfAborted()
       const gpuFps = gpu.fps
       setGpuName(gpu.renderer)
+      if (gpu.error) toast(gpu.error, 'error')
 
       const score = Math.round(cpuSingle * 2 + cpuMulti)
       const runData: BenchRun = {
@@ -96,12 +107,16 @@ export default function Benchmark(): React.JSX.Element {
         writeMBps: disk.writeMBps,
         readMBps: disk.readMBps,
         gpuFps,
+        gpuMs: gpu.gpuMs,
         score
       }
       setResult(runData)
       const newHistory = [runData, ...history].slice(0, 10)
       setHistory(newHistory)
-      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory)) } catch { /* storage unavailable */ }
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory)) } catch (error) {
+        console.error('[Pkaizen] Save benchmark history:', error)
+        toast(t('forge.historyError'), 'error')
+      }
       toast(t('bench.done'), 'success')
     } catch {
       if (!signal.aborted) toast(t('bench.error'), 'error')
@@ -126,7 +141,19 @@ export default function Benchmark(): React.JSX.Element {
   return (
     <>
       <h1>{t('bench.title')}</h1>
-      <p className="subtitle">{t('bench.method')}</p>
+      <p className="subtitle">{t('forge.choose')}</p>
+      <div className="toolbar" role="tablist" aria-label={t('bench.title')}>
+        {([
+          ['local', 'forge.localTab'], ['games', 'forge.gamesTab'], ['references', 'forge.referencesTab']
+        ] as const).map(([id, key]) => <button key={id} role="tab" aria-selected={view === id}
+          className={`btn ${view === id ? 'primary' : ''}`} disabled={phase !== 'idle'} onClick={() => setView(id)}>{t(key)}</button>)}
+      </div>
+      {view === 'games' && <GamingBenchmark disabled={phase !== 'idle'} />}
+      {view === 'references' && <BenchmarkReferences disabled={phase !== 'idle'} />}
+      {view === 'local' && <>
+      <h2>{t('gaming.synthetic')}</h2>
+      <p className="subtitle">{t('forge.explanation')}</p>
+      <p className="banner info">{t('forge.prepare')}</p>
 
       <div className="toolbar">
         <button className="btn primary" disabled={phase !== 'idle'} onClick={run}>
@@ -138,21 +165,24 @@ export default function Benchmark(): React.JSX.Element {
         {phase !== 'idle' && <span className="muted">{PHASE_LABEL[phase]}</span>}
       </div>
 
-      <div className="toolbar">
-        {[
-          ['Cinebench', 'https://www.maxon.net/en/downloads/cinebench'],
-          ['3DMark', 'https://benchmarks.ul.com/3dmark'],
-          ['CrystalDiskMark', 'https://crystalmark.info/en/software/crystaldiskmark/']
-        ].map(([name, url]) => (
-          <button className="btn" key={name} onClick={() => void window.api.openExternal(url)}>{name}</button>
-        ))}
-      </div>
-
-      <canvas key={canvasKey} ref={canvasRef} id="bench-canvas" style={{ display: phase === 'gpu' ? 'block' : 'none', width: '100%', maxWidth: 400, aspectRatio: '8 / 5', borderRadius: 8 }} />
+      <canvas key={canvasKey} ref={canvasRef} id="bench-canvas" style={{ display: phase === 'gpu' ? 'block' : 'none', width: '100%', maxWidth: 640, aspectRatio: '16 / 9', borderRadius: 8 }} />
 
       {result && (
         <>
-          <div className="card" style={{ marginBottom: 14 }}>
+          <div className="card gaming-block">
+            <h2>{t('forge.complete')}</h2>
+            <h3>{t('forge.cpu')}</h3>
+            <p>{t('forge.cpuHelp', (result.cpuSingle / 1000).toFixed(2), (result.cpuMulti / 1000).toFixed(2), result.threads)}</p>
+            <p>{t('forge.diskHelp', (256 / result.writeMBps).toFixed(2), (256 / result.readMBps).toFixed(2))}</p>
+            <h3>{t('forge.gpu')}</h3>
+            <div className="big">{result.gpuFps === null ? t('bench.unavailable') :
+              result.gpuMs != null ? t('forge.gpuTime', result.gpuMs.toFixed(3)) : t('forge.rendered')}</div>
+            <p>{t('forge.gpuHelp')}</p>
+            {result.gpuMs == null && <p className="sub">{t('forge.noTimer')}</p>}
+            {gpuName && <p className="sub">{gpuName}</p>}
+          </div>
+          <details className="card gaming-block">
+            <summary>{t('forge.technical')}</summary>
             <div className="score-ring">
               <div className="score-num">{result.score}</div>
               <div style={{ flex: 1 }}>
@@ -168,7 +198,6 @@ export default function Benchmark(): React.JSX.Element {
                 </div>
               </div>
             </div>
-          </div>
           <div className="grid">
             <div className="card stagger">
               <h3>{t('bench.cpuSingle')}</h3>
@@ -189,10 +218,10 @@ export default function Benchmark(): React.JSX.Element {
               <div className="sub">{t('bench.cachedRead')}</div>
             </div>
             <div className="card stagger">
-              <h3>{t('bench.gpuRender')}</h3>
-              <div className="big">{result.gpuFps == null ? t('bench.unavailable') : `${result.gpuFps} FPS`}</div>
+              <h3>{t('forge.gpu')}</h3>
+              <div className="big">{result.gpuMs == null ? t('bench.unavailable') : `${result.gpuMs.toFixed(3)} ms`}</div>
               <div className="sub">
-                {t('bench.gpuLimited')}
+                {t('forge.gpuHelp')}
                 {gpuName && (
                   <>
                     <br />
@@ -202,12 +231,13 @@ export default function Benchmark(): React.JSX.Element {
               </div>
             </div>
           </div>
+          </details>
         </>
       )}
 
       {history.length > 0 && (
-        <>
-          <div className="section-title">{t('bench.history')}</div>
+        <details className="card gaming-block">
+          <summary>{t('bench.history')}</summary>
           <table>
             <thead>
               <tr>
@@ -217,7 +247,7 @@ export default function Benchmark(): React.JSX.Element {
                 <th>CPU multi</th>
                 <th>{t('bench.write')}</th>
                 <th>{t('bench.read')}</th>
-                <th>GPU</th>
+                <th>{t('forge.gpu')}</th>
               </tr>
             </thead>
             <tbody>
@@ -231,13 +261,14 @@ export default function Benchmark(): React.JSX.Element {
                   <td>{h.cpuMulti}</td>
                   <td>{h.writeMBps} MiB/s</td>
                   <td>{h.readMBps} MiB/s</td>
-                  <td>{h.gpuFps == null ? t('bench.unavailable') : `${h.gpuFps} FPS`}</td>
+                  <td>{h.gpuMs == null ? t('bench.unavailable') : `${h.gpuMs.toFixed(3)} ms`}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </>
+        </details>
       )}
+      </>}
     </>
   )
 }

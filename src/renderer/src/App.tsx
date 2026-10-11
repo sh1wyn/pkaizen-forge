@@ -11,8 +11,10 @@ import Network from './pages/Network'
 import Report from './pages/Report'
 import Benchmark from './pages/Benchmark'
 import Browser from './pages/Browser'
+import GamingReady from './pages/GamingReady'
+import Trust from './pages/Trust'
 
-type Page = 'dashboard' | 'optimize' | 'clean' | 'drivers' | 'startup' | 'network' | 'report' | 'benchmark' | 'browser'
+type Page = 'dashboard' | 'optimize' | 'clean' | 'drivers' | 'startup' | 'network' | 'report' | 'benchmark' | 'browser' | 'readiness' | 'trust'
 
 const NAV: { id: Page; labelKey: StrKey; icon: string }[] = [
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: '📊' },
@@ -23,7 +25,9 @@ const NAV: { id: Page; labelKey: StrKey; icon: string }[] = [
   { id: 'startup', labelKey: 'nav.startup', icon: '🚀' },
   { id: 'network', labelKey: 'nav.network', icon: '🌐' },
   { id: 'browser', labelKey: 'nav.browser', icon: '🧭' },
-  { id: 'report', labelKey: 'nav.report', icon: '📋' }
+  { id: 'report', labelKey: 'nav.report', icon: '📋' },
+  { id: 'readiness', labelKey: 'nav.readiness', icon: '🎮' },
+  { id: 'trust', labelKey: 'nav.trust', icon: '🛡' }
 ]
 
 function Shell(): React.JSX.Element {
@@ -115,6 +119,8 @@ function Shell(): React.JSX.Element {
             {page === 'report' && <Report />}
             {page === 'benchmark' && <Benchmark />}
             {page === 'browser' && <Browser />}
+            {page === 'readiness' && <GamingReady />}
+            {page === 'trust' && <Trust />}
           </ErrorBoundary>
         </div>
       </main>

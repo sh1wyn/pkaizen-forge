@@ -64,31 +64,73 @@ export async function runCpuWorkers(count: number, signal: AbortSignal): Promise
   }
 }
 
-export async function runGpuBench(canvas: HTMLCanvasElement, signal: AbortSignal): Promise<{ fps: number | null; renderer: string }> {
+interface GpuTimerExtension {
+  TIME_ELAPSED_EXT: number
+  GPU_DISJOINT_EXT: number
+}
+
+export async function runGpuBench(canvas: HTMLCanvasElement, signal: AbortSignal): Promise<{
+  fps: number | null; renderer: string; gpuMs: number | null; error?: string
+}> {
   signal.throwIfAborted()
   const gl = canvas.getContext('webgl2', { antialias: false, powerPreference: 'default' })
-  if (!gl) return { fps: null, renderer: '' }
+  if (!gl) return { fps: null, renderer: '', gpuMs: null }
   const debug = gl.getExtension('WEBGL_debug_renderer_info')
   const renderer = debug ? String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)) : ''
   const shaders: WebGLShader[] = []
   const program = gl.createProgram()
   const buffer = gl.createBuffer()
   let fence: WebGLSync | null = null
+  const timer = gl.getExtension('EXT_disjoint_timer_query_webgl2') as GpuTimerExtension | null
+  let query: WebGLQuery | null = null
+  let queryMeasured = false
+  let timingInvalid = false
+  const gpuTimes: number[] = []
   try {
     if (!program || !buffer) throw new Error('WebGL allocation failed')
     const sources = [
       [gl.VERTEX_SHADER, `#version 300 es
-        in vec2 position; uniform float time; out vec3 color;
-        void main() {
-          float instance = float(gl_InstanceID);
-          float angle = time * 0.4 + instance * 0.37;
-          vec2 offset = vec2(cos(angle + instance), sin(angle * 1.3 + instance)) * 0.85;
-          gl_Position = vec4(position * 0.025 + offset, 0.0, 1.0);
-          color = vec3(mod(instance, 3.0)/3.0, mod(instance, 5.0)/5.0, mod(instance, 7.0)/7.0);
-        }`],
+        in vec2 position; out vec2 uv;
+        void main() { uv = position; gl_Position = vec4(position, 0.0, 1.0); }`],
       [gl.FRAGMENT_SHADER, `#version 300 es
-        precision highp float; in vec3 color; out vec4 outputColor;
-        void main() { outputColor = vec4(color * 0.7 + 0.3, 1.0); }`]
+        precision highp float; in vec2 uv; uniform float time; out vec4 outputColor;
+        float scene(vec3 p) {
+          float a = time * 0.7;
+          p.xz = mat2(cos(a), -sin(a), sin(a), cos(a)) * p.xz;
+          float sphere = length(p - vec3(0.8, 0.2, 0.0)) - 0.8;
+          float ring = length(vec2(length(p.xy) - 1.25, p.z)) - 0.22;
+          return min(min(sphere, ring), p.y + 1.15);
+        }
+        void main() {
+          vec3 origin = vec3(0.0, 0.3, 4.0);
+          vec3 direction = normalize(vec3(uv.x * 1.77778, uv.y, -2.0));
+          float travel = 0.0;
+          bool hit = false;
+          for (int i = 0; i < 64; i++) {
+            float distanceToScene = scene(origin + direction * travel);
+            if (distanceToScene < 0.002) { hit = true; break; }
+            travel += distanceToScene;
+            if (travel > 15.0) break;
+          }
+          vec3 color = vec3(0.025, 0.04, 0.09) + 0.06 * max(direction.y, 0.0);
+          if (hit) {
+            vec3 p = origin + direction * travel;
+            vec2 e = vec2(0.002, 0.0);
+            vec3 normal = normalize(vec3(
+              scene(p + e.xyy) - scene(p - e.xyy),
+              scene(p + e.yxy) - scene(p - e.yxy),
+              scene(p + e.yyx) - scene(p - e.yyx)));
+            vec3 light = normalize(vec3(-0.6, 0.8, 0.7));
+            float diffuse = max(dot(normal, light), 0.0);
+            float specular = pow(max(dot(reflect(-light, normal), -direction), 0.0), 32.0);
+            vec3 base = p.y < -1.1
+              ? mix(vec3(0.09), vec3(0.2), mod(floor(p.x * 2.0) + floor(p.z * 2.0), 2.0))
+              : 0.45 + 0.35 * cos(vec3(0.0, 2.0, 4.0) + p.x + time);
+            color = base * (0.2 + diffuse * 0.8) + specular * 0.7;
+            color = mix(color, vec3(0.025, 0.04, 0.09), min(travel / 20.0, 0.8));
+          }
+          outputColor = vec4(sqrt(max(color, vec3(0.0))), 1.0);
+        }`]
     ] as const
     for (const [type, source] of sources) {
       const shader = gl.createShader(type)
@@ -103,7 +145,7 @@ export async function runGpuBench(canvas: HTMLCanvasElement, signal: AbortSignal
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('WebGL program link failed')
     gl.useProgram(program)
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 1, -1, -1, 1, -1]), gl.STATIC_DRAW)
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW)
     const location = gl.getAttribLocation(program, 'position')
     gl.enableVertexAttribArray(location)
     gl.vertexAttribPointer(location, 2, gl.FLOAT, false, 0, 0)
@@ -113,9 +155,9 @@ export async function runGpuBench(canvas: HTMLCanvasElement, signal: AbortSignal
     let frames = 0
     let frameStart = start
     await new Promise<void>((resolve, reject) => {
-      let timer: ReturnType<typeof setTimeout>
+      let timerHandle: ReturnType<typeof setTimeout>
       const finish = (error?: unknown): void => {
-        clearTimeout(timer)
+        clearTimeout(timerHandle)
         signal.removeEventListener('abort', abort)
         if (error) reject(error)
         else resolve()
@@ -127,18 +169,31 @@ export async function runGpuBench(canvas: HTMLCanvasElement, signal: AbortSignal
           signal.throwIfAborted()
           if (gl.isContextLost()) throw new Error('WebGL context lost')
           const now = performance.now()
+          if (timer && gl.getParameter(timer.GPU_DISJOINT_EXT)) timingInvalid = true
           if (fence) {
             const status = gl.clientWaitSync(fence, 0, 0)
             if (status === gl.WAIT_FAILED) throw new Error('WebGL sync failed')
             if (status === gl.TIMEOUT_EXPIRED) {
               if (now - frameStart > 2000) throw new Error('GPU benchmark timed out')
-              timer = setTimeout(step, 16)
+              timerHandle = setTimeout(step, 16)
               return
             }
             gl.deleteSync(fence)
             fence = null
             if (measuredStart) frames++
             else if (now - start >= 300) measuredStart = now
+          }
+          if (query && timer) {
+            if (!gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) {
+              if (now - frameStart > 2000) throw new Error('GPU timer query timed out')
+              timerHandle = setTimeout(step, 16)
+              return
+            }
+            const ns: unknown = gl.getQueryParameter(query, gl.QUERY_RESULT)
+            if (queryMeasured && typeof ns === 'number' && Number.isFinite(ns) && ns > 0) gpuTimes.push(ns / 1_000_000)
+            else if (queryMeasured) timingInvalid = true
+            gl.deleteQuery(query)
+            query = null
           }
           if (measuredStart && now - measuredStart >= 3000) {
             finish()
@@ -148,24 +203,38 @@ export async function runGpuBench(canvas: HTMLCanvasElement, signal: AbortSignal
           gl.clearColor(0.04, 0.05, 0.08, 1)
           gl.clear(gl.COLOR_BUFFER_BIT)
           gl.uniform1f(time, (now - start) / 1000)
-          gl.drawArraysInstanced(gl.TRIANGLES, 0, 3, 3000)
+          if (timer) {
+            query = gl.createQuery()
+            if (!query) throw new Error('GPU timer allocation failed')
+            queryMeasured = measuredStart > 0
+            gl.beginQuery(timer.TIME_ELAPSED_EXT, query)
+          }
+          gl.drawArrays(gl.TRIANGLES, 0, 3)
+          if (timer) gl.endQuery(timer.TIME_ELAPSED_EXT)
           fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0)
           if (!fence) throw new Error('WebGL sync unavailable')
           gl.flush()
           frameStart = now
-          timer = setTimeout(step, 16)
+          timerHandle = setTimeout(step, 16)
         } catch (error) {
           finish(error)
         }
       }
       step()
     })
-    return { fps: Math.round(frames * 1000 / Math.max(1, performance.now() - measuredStart)), renderer }
+    return {
+      fps: Math.round(frames * 1000 / Math.max(1, performance.now() - measuredStart)),
+      renderer,
+      gpuMs: !timingInvalid && gpuTimes.length >= 10
+        ? gpuTimes.reduce((sum, ms) => sum + ms, 0) / gpuTimes.length : null
+    }
   } catch (error) {
     if (signal.aborted) throw error
-    return { fps: null, renderer }
+    console.error('[Pkaizen] GPU benchmark:', error)
+    return { fps: null, renderer, gpuMs: null, error: error instanceof Error ? error.message : String(error) }
   } finally {
     if (fence) gl.deleteSync(fence)
+    if (query) gl.deleteQuery(query)
     shaders.forEach((shader) => gl.deleteShader(shader))
     gl.deleteBuffer(buffer)
     gl.deleteProgram(program)

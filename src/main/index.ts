@@ -8,6 +8,7 @@ import { getInsights } from './system/analyzer'
 import { getDetailedInfo } from './system/details'
 import { listTweaks, getTweakStates, applyTweak, revertTweak, getTweakRelevance } from './system/optimizer'
 import { diskBench } from './system/bench'
+import { getInstalledGames } from './system/games'
 import { previewClean, runClean } from './system/cleaner'
 import {
   scanDrivers,
@@ -19,7 +20,8 @@ import {
 } from './system/drivers'
 import { getStartupItems, setStartupEnabled } from './system/startup'
 import { getNetInfo, pingTest, dnsBench, setDns, speedTest } from './system/network'
-import { getBrowserReport, installBrowser } from './system/browser'
+import { getBrowserReport, installBrowser, openBrowserDefaults } from './system/browser'
+import { getDriverInstallers, launchDriverInstaller } from './system/driverInstallers'
 import { initDiscordPresence, destroyPresence } from './system/discord'
 import { generateReport } from './system/report'
 import {
@@ -139,6 +141,7 @@ function registerIpc(): void {
     }
   })
   handle('system:report', () => getSystemReport())
+  handle('games:installed', () => getInstalledGames())
   handle('system:live', () => getLiveStats())
   handle('system:insights', () => getInsights())
   handle('system:details', () => getDetailedInfo())
@@ -209,6 +212,8 @@ function registerIpc(): void {
   handle('clean:run', (_e, ids: string[]) => runClean(ids))
 
   handle('drivers:scan', () => scanDrivers())
+  handle('drivers:installers', () => getDriverInstallers())
+  handle('drivers:launchInstaller', (_event, id: string) => launchDriverInstaller(id))
   handle('drivers:winget', () => getWingetUpgrades())
   handle('drivers:links', () => getVendorLinks())
   handle('drivers:gpuStatus', () => getGpuDriverStatus())
@@ -245,10 +250,14 @@ function registerIpc(): void {
   handle('net:cancelSpeed', () => { speedController?.abort() })
   handle('browser:report', () => getBrowserReport())
   handle('browser:install', (_e, id: string) => installBrowser(id))
+  handle('browser:defaults', (_event, id: string) => openBrowserDefaults(id))
   handle('report:generate', () => generateReport())
 
-  handle('shell:open', (_e, url: string) => {
-    if (url.startsWith('https://') || url.startsWith('ms-settings:')) shell.openExternal(url)
+  handle('shell:open', async (_e, url: string) => {
+    if (typeof url !== 'string' || !(url.startsWith('https://') || url.startsWith('ms-settings:'))) {
+      throw new Error('Unsupported external URL')
+    }
+    await shell.openExternal(url)
   })
 }
 

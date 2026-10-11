@@ -16,9 +16,60 @@ const HIGH_PERF = '8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c'
 const BALANCED = '381b4222-f694-41f0-9685-ff5bb260df2e'
 const ULTIMATE = 'e9a42b02-d5df-448d-aa00-03f14749eb61'
 
-// Tous les tweaks sont réversibles, sans toucher Secure Boot / TPM / VBS /
-// pilotes kernel — donc 100% compatibles Vanguard, EAC, BattlEye, Faceit.
+const TRANSPARENCY_KEY = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize'
+const TRANSPARENCY_BACKUP = 'HKCU:\\Software\\PkaizenForge\\Backups\\Transparency'
+
 const TWEAKS: Tweak[] = [
+  {
+    id: 'transparency-off',
+    name: 'Désactiver les transparences Windows',
+    nameEn: 'Disable Windows transparency',
+    description: 'Retire les effets translucides du bureau Windows. Option de confort, sans gain FPS garanti. Sauvegarde la valeur précédente et la restaure exactement à l’annulation. Une reconnexion peut être nécessaire.',
+    descriptionEn: 'Removes translucent Windows desktop effects. A comfort option, with no promised gaming FPS gain. Saves the previous value and restores it exactly when undone. Signing out and back in may be needed.',
+    category: 'systeme',
+    needsAdmin: false,
+    laptopWarning: false,
+    needsReboot: false,
+    recommended: false,
+    apply: `
+      $key='${TRANSPARENCY_KEY}'; $backup='${TRANSPARENCY_BACKUP}'
+      if (!(Test-Path $backup) -or (Get-ItemProperty $backup -ErrorAction Stop).Saved -ne 1) {
+        $present=0; $value=0
+        if (Test-Path $key) {
+          $item=Get-Item $key
+          if ($item.GetValueNames() -contains 'EnableTransparency') {
+            if ($item.GetValueKind('EnableTransparency') -ne 'DWord') { throw 'Unexpected transparency value type; no change made' }
+            $present=1; $value=$item.GetValue('EnableTransparency')
+          }
+        }
+        New-Item $backup -Force | Out-Null
+        New-ItemProperty $backup -Name Present -Value $present -PropertyType DWord -Force | Out-Null
+        New-ItemProperty $backup -Name Value -Value $value -PropertyType DWord -Force | Out-Null
+        New-ItemProperty $backup -Name Saved -Value 1 -PropertyType DWord -Force | Out-Null
+        $saved=Get-ItemProperty $backup
+        if ($saved.Saved -ne 1 -or $saved.Present -ne $present -or $saved.Value -ne $value) { throw 'Transparency backup could not be verified' }
+      }
+      New-Item $key -Force | Out-Null
+      New-ItemProperty $key -Name EnableTransparency -Value 0 -PropertyType DWord -Force | Out-Null`,
+    revert: `
+      $key='${TRANSPARENCY_KEY}'; $backup='${TRANSPARENCY_BACKUP}'
+      if (!(Test-Path $backup)) { throw 'No Forge backup: change transparency in Windows Settings instead' }
+      $saved=Get-ItemProperty $backup
+      if ($saved.Saved -ne 1 -or $saved.Present -notin @(0,1) -or $null -eq $saved.Value) { throw 'Invalid transparency backup; nothing restored' }
+      New-Item $key -Force | Out-Null
+      if ($saved.Present -eq 1) {
+        New-ItemProperty $key -Name EnableTransparency -Value $saved.Value -PropertyType DWord -Force | Out-Null
+        $item=Get-Item $key
+        if ($item.GetValueKind('EnableTransparency') -ne 'DWord' -or $item.GetValue('EnableTransparency') -ne $saved.Value) { throw 'Transparency restore verification failed' }
+      } else {
+        if ((Get-Item $key).GetValueNames() -contains 'EnableTransparency') { Remove-ItemProperty $key -Name EnableTransparency }
+        if ((Get-Item $key).GetValueNames() -contains 'EnableTransparency') { throw 'Transparency removal verification failed' }
+      }
+      Remove-Item $backup`,
+    check: `
+      $v = Get-ItemProperty '${TRANSPARENCY_KEY}' -ErrorAction SilentlyContinue
+      if ($null -ne $v.EnableTransparency -and $v.EnableTransparency -eq 0) { '1' }`
+  },
   {
     id: 'power-high',
     name: 'Plan d\u2019alimentation Performances élevées',
@@ -372,14 +423,15 @@ export function listTweaks(): TweakInfo[] {
 
 export async function getTweakStates(): Promise<TweakState[]> {
   // Un seul process PowerShell pour les 15 checks (au lieu de 15 en parallèle).
-  const checks = TWEAKS.map((t, i) => `$o${i} = & { ${t.check} }\n$r['${t.id}'] = ("$o${i}" -match '1')`)
+  const checks = TWEAKS.map((t, i) => `$o${i} = & { ${t.check} }\n$r['${t.id}'] = ("$o${i}".Trim() -eq '1')`)
   const script = `$r = @{}\n${checks.join('\n')}\nConvertTo-Json $r`
   try {
     const raw = await psJson<Record<string, boolean>>(script, 60000)
-    if (!raw) throw new Error('empty')
-    return TWEAKS.map((t) => ({ id: t.id, applied: raw[t.id] === true, available: t.id in raw }))
-  } catch {
-    return TWEAKS.map((t) => ({ id: t.id, applied: false, available: false }))
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid tweak state response')
+    return TWEAKS.map((t) => ({ id: t.id, applied: raw[t.id] === true, available: typeof raw[t.id] === 'boolean' }))
+  } catch (error) {
+    console.error('[Pkaizen] Tweak state detection:', error)
+    throw error
   }
 }
 
@@ -411,7 +463,9 @@ export async function revertTweak(id: string): Promise<ActionResult> {
   try {
     await ps(`$ErrorActionPreference='Stop'; $LASTEXITCODE=0; ${t.revert}
       if ($LASTEXITCODE -ne 0) { throw "Windows command failed (exit $LASTEXITCODE)" }`, 30000, true)
-    return { ok: true, message: T('Windows default values restored.', 'Valeurs Windows par défaut restaurées.') }
+    return { ok: true, message: id === 'transparency-off'
+      ? T('Previous transparency value restored and verified.', 'Valeur précédente des transparences restaurée et vérifiée.')
+      : T('Windows default values restored.', 'Valeurs Windows par défaut restaurées.') }
   } catch (e) {
     return { ok: false, message: (e as Error).message }
   }

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 import { invalidate } from './cache'
+import { FEATURE_STR, type FeatureKey } from './features-i18n'
 
 export type Lang = 'en' | 'fr' | 'es' | 'de' | 'pt' | 'it'
 const LS_KEY = 'pkaizen-lang'
@@ -23,7 +24,7 @@ const STR = {
     'nav.report': 'Report',
     'sidebar.admin': '🛡 Administrator mode',
     'sidebar.user': '👤 User mode',
-    'sidebar.tagline': '100% reversible · anticheat-safe (Vanguard, EAC, BattlEye)',
+    'sidebar.tagline': 'Public source · measured results · no promised FPS gains',
     'app.rebootPending': '🔄 A restart is pending to finalize changes.',
     'app.rebootNow': 'Restart now',
     // dashboard
@@ -76,7 +77,7 @@ const STR = {
     // optimize
     'opt.title': 'Optimize',
     'opt.subtitle':
-      'Real, reversible tweaks — FPS, latency, responsiveness. Zero anticheat risk: Secure Boot, TPM and kernel drivers are never touched.',
+      'Windows settings with undo actions. Results depend on the PC and game; no universal FPS gain or anticheat certification is promised.',
     'opt.adminBanner':
       '⚠ Some tweaks require administrator rights. Close Pkaizen Forge and relaunch it with right-click → "Run as administrator" to unlock everything.',
     'opt.laptopBanner':
@@ -158,7 +159,7 @@ const STR = {
     // drivers
     'drv.title': 'Drivers',
     'drv.subtitle':
-      'Official sources only: Windows Update (Microsoft-signed drivers), winget and manufacturer sites. Never shady third-party driver sites.',
+      'Manufacturer installers matched to detected hardware. A newer driver is not always the most suitable for an OEM PC.',
     'drv.rebootBanner': '✅ Drivers installed — a restart is required to activate them.',
     'drv.gpuSection': '🎮 Graphics card — official check',
     'drv.gpuChecking': 'Checking with the manufacturer…',
@@ -190,6 +191,14 @@ const STR = {
     'drv.wuSearching': 'Querying Windows Update (can take 1-2 min)…',
     'drv.wuNone': 'No pending drivers on Windows Update — all good on that side ✔',
     'drv.wuError': 'Windows Update search failed',
+    'drv.assistants': 'Manufacturer installers',
+    'drv.launchAssistant': 'Launch installer',
+    'drv.storeAssistant': 'Open Microsoft Store',
+    'drv.noAssistant': 'No verified automatic installer for this hardware. Windows Update remains available; full manufacturer coverage is not guaranteed.',
+    'drv.preparing': 'Downloading and checking publisher signature…',
+    'drv.wuInstalling': 'Downloading and installing selected drivers…',
+    'browser.setDefault': 'Set as default',
+    'browser.whyVivaldi': 'Extensive customization, tab stacks and built-in tools. Resource use depends on the enabled features and open tabs.',
     'drv.linksSection': '🏷 Official sources for your machine',
     'drv.open': 'Open ↗',
     'drv.wingetSection': '📦 Manufacturer software & tools (winget)',
@@ -309,7 +318,7 @@ const STR = {
     'nav.report': 'Rapport',
     'sidebar.admin': '🛡 Mode administrateur',
     'sidebar.user': '👤 Mode utilisateur',
-    'sidebar.tagline': '100% réversible · compatible anticheat (Vanguard, EAC, BattlEye)',
+    'sidebar.tagline': 'Code public · résultats mesurés · aucun gain FPS promis',
     'app.rebootPending': '🔄 Un redémarrage est en attente pour finaliser des changements.',
     'app.rebootNow': 'Redémarrer maintenant',
     'dash.title': 'Diagnostic',
@@ -440,7 +449,7 @@ const STR = {
     'clean.errorAnalyze': 'Erreur pendant l\u2019analyse',
     'drv.title': 'Pilotes',
     'drv.subtitle':
-      'Uniquement des sources officielles : Windows Update (pilotes signés Microsoft), winget et les sites constructeurs. Jamais de pilotes de sites tiers douteux.',
+      'Installeurs constructeurs selon le matériel détecté. Le pilote le plus récent n’est pas toujours le plus adapté à un PC constructeur.',
     'drv.rebootBanner': '✅ Pilotes installés — un redémarrage est nécessaire pour les activer.',
     'drv.gpuSection': '🎮 Carte graphique — vérification officielle',
     'drv.gpuChecking': 'Vérification auprès du constructeur…',
@@ -472,6 +481,14 @@ const STR = {
     'drv.wuSearching': 'Interrogation de Windows Update (peut prendre 1-2 min)…',
     'drv.wuNone': 'Aucun pilote en attente côté Windows Update — tout est à jour de ce côté ✔',
     'drv.wuError': 'Recherche Windows Update impossible',
+    'drv.assistants': 'Installeurs constructeurs',
+    'drv.launchAssistant': 'Lancer l’installeur',
+    'drv.storeAssistant': 'Ouvrir Microsoft Store',
+    'drv.noAssistant': 'Aucun installeur automatique vérifié pour ce matériel. Windows Update reste disponible ; la couverture complète du constructeur n’est pas garantie.',
+    'drv.preparing': 'Téléchargement et vérification de la signature éditeur…',
+    'drv.wuInstalling': 'Téléchargement et installation des pilotes sélectionnés…',
+    'browser.setDefault': 'Définir par défaut',
+    'browser.whyVivaldi': 'Personnalisation poussée, piles d’onglets et outils intégrés. La consommation dépend des fonctions activées et des onglets ouverts.',
     'drv.linksSection': '🏷 Sources officielles pour ta machine',
     'drv.open': 'Ouvrir ↗',
     'drv.wingetSection': '📦 Logiciels & outils constructeurs (winget)',
@@ -587,7 +604,7 @@ const STR = {
     'nav.report': 'Informe',
     'sidebar.admin': '🛡 Modo administrador',
     'sidebar.user': '👤 Modo usuario',
-    'sidebar.tagline': '100% reversible · compatible con anticheat (Vanguard, EAC, BattlEye)',
+    'sidebar.tagline': 'Código público · resultados medidos · sin promesas de FPS',
     'app.rebootPending': '🔄 Hay un reinicio pendiente para finalizar los cambios.',
     'app.rebootNow': 'Reiniciar ahora',
     'dash.title': 'Diagnóstico',
@@ -717,7 +734,7 @@ const STR = {
     'clean.errorAnalyze': 'Error durante el análisis',
     'drv.title': 'Drivers',
     'drv.subtitle':
-      'Solo fuentes oficiales: Windows Update (drivers firmados por Microsoft), winget y webs de fabricantes. Nunca webs de terceros dudosas.',
+      'Instaladores del fabricante según el hardware detectado. El controlador más reciente no siempre es el más adecuado para un PC OEM.',
     'drv.rebootBanner': '✅ Drivers instalados — se requiere un reinicio para activarlos.',
     'drv.gpuSection': '🎮 Tarjeta gráfica — verificación oficial',
     'drv.gpuChecking': 'Verificando con el fabricante…',
@@ -749,6 +766,14 @@ const STR = {
     'drv.wuSearching': 'Consultando Windows Update (puede tardar 1-2 min)…',
     'drv.wuNone': 'Sin drivers pendientes en Windows Update — todo al día por ese lado ✔',
     'drv.wuError': 'No se pudo buscar en Windows Update',
+    'drv.assistants': 'Instaladores del fabricante',
+    'drv.launchAssistant': 'Iniciar instalador',
+    'drv.storeAssistant': 'Abrir Microsoft Store',
+    'drv.noAssistant': 'No hay un instalador automático verificado para este hardware. Windows Update sigue disponible; no se garantiza cobertura completa.',
+    'drv.preparing': 'Descargando y verificando la firma del editor…',
+    'drv.wuInstalling': 'Descargando e instalando los controladores seleccionados…',
+    'browser.setDefault': 'Establecer como predeterminado',
+    'browser.whyVivaldi': 'Personalización avanzada, grupos de pestañas y herramientas integradas. El consumo depende de las funciones y pestañas activas.',
     'drv.linksSection': '🏷 Fuentes oficiales para tu equipo',
     'drv.open': 'Abrir ↗',
     'drv.wingetSection': '📦 Software y herramientas del fabricante (winget)',
@@ -864,7 +889,7 @@ const STR = {
     'nav.report': 'Отчёт',
     'sidebar.admin': '🛡 Режим администратора',
     'sidebar.user': '👤 Режим пользователя',
-    'sidebar.tagline': '100% обратимо · совместимо с античитами (Vanguard, EAC, BattlEye)',
+    'sidebar.tagline': 'Открытый код · измеренные результаты · без обещаний FPS',
     'app.rebootPending': '🔄 Для завершения изменений требуется перезагрузка.',
     'app.rebootNow': 'Перезагрузить сейчас',
     'dash.title': 'Диагностика',
@@ -994,7 +1019,7 @@ const STR = {
     'clean.errorAnalyze': 'Ошибка при анализе',
     'drv.title': 'Драйверы',
     'drv.subtitle':
-      'Только официальные источники: Windows Update (подписанные Microsoft драйверы), winget и сайты производителей. Никаких сомнительных сторонних сайтов.',
+      'Установщики производителей для обнаруженного оборудования. Самый новый драйвер не всегда оптимален для OEM-компьютера.',
     'drv.rebootBanner': '✅ Драйверы установлены — для активации нужна перезагрузка.',
     'drv.gpuSection': '🎮 Видеокарта — официальная проверка',
     'drv.gpuChecking': 'Проверка у производителя…',
@@ -1026,6 +1051,14 @@ const STR = {
     'drv.wuSearching': 'Запрос к Windows Update (может занять 1-2 мин)…',
     'drv.wuNone': 'В Windows Update нет ожидающих драйверов — здесь всё актуально ✔',
     'drv.wuError': 'Поиск Windows Update не удался',
+    'drv.assistants': 'Установщики производителей',
+    'drv.launchAssistant': 'Запустить установщик',
+    'drv.storeAssistant': 'Открыть Microsoft Store',
+    'drv.noAssistant': 'Проверенный автоматический установщик для этого оборудования не найден. Windows Update доступен, но полное покрытие не гарантируется.',
+    'drv.preparing': 'Загрузка и проверка подписи издателя…',
+    'drv.wuInstalling': 'Загрузка и установка выбранных драйверов…',
+    'browser.setDefault': 'Сделать по умолчанию',
+    'browser.whyVivaldi': 'Гибкая настройка, группы вкладок и встроенные инструменты. Расход ресурсов зависит от включённых функций и открытых вкладок.',
     'drv.linksSection': '🏷 Официальные источники для вашего ПК',
     'drv.open': 'Открыть ↗',
     'drv.wingetSection': '📦 ПО и утилиты производителей (winget)',
@@ -1141,7 +1174,7 @@ const STR = {
     'nav.report': 'Bericht',
     'sidebar.admin': '🛡 Administratormodus',
     'sidebar.user': '👤 Benutzermodus',
-    'sidebar.tagline': '100% umkehrbar · Anticheat-sicher (Vanguard, EAC, BattlEye)',
+    'sidebar.tagline': 'Öffentlicher Code · Messwerte · keine FPS-Versprechen',
     'app.rebootPending': '🔄 Ein Neustart steht aus, um Änderungen abzuschließen.',
     'app.rebootNow': 'Jetzt neu starten',
     'dash.title': 'Diagnose',
@@ -1271,7 +1304,7 @@ const STR = {
     'clean.errorAnalyze': 'Fehler bei der Analyse',
     'drv.title': 'Treiber',
     'drv.subtitle':
-      'Nur offizielle Quellen: Windows Update (von Microsoft signierte Treiber), winget und Herstellerseiten. Nie dubiose Drittanbieterseiten.',
+      'Hersteller-Installer passend zur erkannten Hardware. Der neueste Treiber ist nicht immer der geeignetste für einen OEM-PC.',
     'drv.rebootBanner': '✅ Treiber installiert — zur Aktivierung ist ein Neustart nötig.',
     'drv.gpuSection': '🎮 Grafikkarte — offizielle Prüfung',
     'drv.gpuChecking': 'Prüfung beim Hersteller…',
@@ -1303,6 +1336,14 @@ const STR = {
     'drv.wuSearching': 'Windows Update wird abgefragt (kann 1-2 Min. dauern)…',
     'drv.wuNone': 'Keine ausstehenden Treiber bei Windows Update — hier alles aktuell ✔',
     'drv.wuError': 'Windows-Update-Suche fehlgeschlagen',
+    'drv.assistants': 'Hersteller-Installer',
+    'drv.launchAssistant': 'Installer starten',
+    'drv.storeAssistant': 'Microsoft Store öffnen',
+    'drv.noAssistant': 'Kein geprüfter automatischer Installer für diese Hardware. Windows Update bleibt verfügbar; vollständige Abdeckung ist nicht garantiert.',
+    'drv.preparing': 'Download und Prüfung der Herausgebersignatur…',
+    'drv.wuInstalling': 'Ausgewählte Treiber werden heruntergeladen und installiert…',
+    'browser.setDefault': 'Als Standard festlegen',
+    'browser.whyVivaldi': 'Umfangreiche Anpassung, Tab-Stapel und integrierte Werkzeuge. Der Ressourcenverbrauch hängt von Funktionen und offenen Tabs ab.',
     'drv.linksSection': '🏷 Offizielle Quellen für dein Gerät',
     'drv.open': 'Öffnen ↗',
     'drv.wingetSection': '📦 Hersteller-Software & Tools (winget)',
@@ -1418,7 +1459,7 @@ const STR = {
     'nav.report': 'Relatório',
     'sidebar.admin': '🛡 Modo administrador',
     'sidebar.user': '👤 Modo usuário',
-    'sidebar.tagline': '100% reversível · compatível com anticheat (Vanguard, EAC, BattlEye)',
+    'sidebar.tagline': 'Código público · resultados medidos · sem promessas de FPS',
     'app.rebootPending': '🔄 Uma reinicialização está pendente para concluir as alterações.',
     'app.rebootNow': 'Reiniciar agora',
     'dash.title': 'Diagnóstico',
@@ -1548,7 +1589,7 @@ const STR = {
     'clean.errorAnalyze': 'Erro durante a análise',
     'drv.title': 'Drivers',
     'drv.subtitle':
-      'Apenas fontes oficiais: Windows Update (drivers assinados pela Microsoft), winget e sites dos fabricantes. Nunca sites de terceiros duvidosos.',
+      'Instaladores do fabricante para o hardware detectado. O driver mais recente nem sempre é o mais adequado para um PC OEM.',
     'drv.rebootBanner': '✅ Drivers instalados — é necessário reiniciar para ativá-los.',
     'drv.gpuSection': '🎮 Placa de vídeo — verificação oficial',
     'drv.gpuChecking': 'Verificando com o fabricante…',
@@ -1580,6 +1621,14 @@ const STR = {
     'drv.wuSearching': 'Consultando o Windows Update (pode levar 1-2 min)…',
     'drv.wuNone': 'Nenhum driver pendente no Windows Update — tudo em dia por aí ✔',
     'drv.wuError': 'Falha na busca do Windows Update',
+    'drv.assistants': 'Instaladores do fabricante',
+    'drv.launchAssistant': 'Iniciar instalador',
+    'drv.storeAssistant': 'Abrir Microsoft Store',
+    'drv.noAssistant': 'Nenhum instalador automático verificado para este hardware. O Windows Update continua disponível; cobertura completa não é garantida.',
+    'drv.preparing': 'Baixando e verificando a assinatura do editor…',
+    'drv.wuInstalling': 'Baixando e instalando os drivers selecionados…',
+    'browser.setDefault': 'Definir como padrão',
+    'browser.whyVivaldi': 'Personalização avançada, grupos de abas e ferramentas integradas. O consumo depende das funções ativas e das abas abertas.',
     'drv.linksSection': '🏷 Fontes oficiais para a sua máquina',
     'drv.open': 'Abrir ↗',
     'drv.wingetSection': '📦 Softwares e ferramentas do fabricante (winget)',
@@ -1695,7 +1744,7 @@ const STR = {
     'nav.report': 'Report',
     'sidebar.admin': '🛡 Modalità amministratore',
     'sidebar.user': '👤 Modalità utente',
-    'sidebar.tagline': '100% reversibile · compatibile anticheat (Vanguard, EAC, BattlEye)',
+    'sidebar.tagline': 'Codice pubblico · risultati misurati · nessuna promessa di FPS',
     'app.rebootPending': '🔄 È in sospeso un riavvio per completare le modifiche.',
     'app.rebootNow': 'Riavvia ora',
     'dash.title': 'Diagnostica',
@@ -1825,7 +1874,7 @@ const STR = {
     'clean.errorAnalyze': 'Errore durante l\u2019analisi',
     'drv.title': 'Driver',
     'drv.subtitle':
-      'Solo fonti ufficiali: Windows Update (driver firmati Microsoft), winget e siti dei produttori. Mai siti di terze parti dubbi.',
+      'Programmi di installazione del produttore per l’hardware rilevato. Il driver più recente non è sempre il più adatto a un PC OEM.',
     'drv.rebootBanner': '✅ Driver installati — serve un riavvio per attivarli.',
     'drv.gpuSection': '🎮 Scheda video — verifica ufficiale',
     'drv.gpuChecking': 'Verifica presso il produttore…',
@@ -1857,6 +1906,14 @@ const STR = {
     'drv.wuSearching': 'Interrogazione di Windows Update (può richiedere 1-2 min)…',
     'drv.wuNone': 'Nessun driver in attesa su Windows Update — tutto aggiornato da questo lato ✔',
     'drv.wuError': 'Ricerca Windows Update non riuscita',
+    'drv.assistants': 'Programmi di installazione del produttore',
+    'drv.launchAssistant': 'Avvia installazione',
+    'drv.storeAssistant': 'Apri Microsoft Store',
+    'drv.noAssistant': 'Nessun programma automatico verificato per questo hardware. Windows Update resta disponibile; la copertura completa non è garantita.',
+    'drv.preparing': 'Download e verifica della firma dell’editore…',
+    'drv.wuInstalling': 'Download e installazione dei driver selezionati…',
+    'browser.setDefault': 'Imposta come predefinito',
+    'browser.whyVivaldi': 'Personalizzazione avanzata, gruppi di schede e strumenti integrati. Il consumo dipende dalle funzioni attive e dalle schede aperte.',
     'drv.linksSection': '🏷 Fonti ufficiali per la tua macchina',
     'drv.open': 'Apri ↗',
     'drv.wingetSection': '📦 Software e strumenti del produttore (winget)',
@@ -1963,7 +2020,7 @@ const STR = {
   }
 } as const
 
-export type StrKey = keyof (typeof STR)['en']
+export type StrKey = keyof (typeof STR)['en'] | FeatureKey
 
 interface I18nCtx {
   lang: Lang
@@ -1990,7 +2047,9 @@ export function I18nProvider({ children }: { children: ReactNode }): React.JSX.E
   const t = useCallback(
     (key: StrKey, ...args: (string | number)[]): string => {
       const dict = (STR as Record<string, Record<string, string>>)[lang] ?? STR.en
-      let s: string = dict[key] ?? STR.en[key] ?? key
+      const features: Partial<Record<StrKey, string>> = lang === 'fr' ? FEATURE_STR.fr : FEATURE_STR.en
+      const english: Partial<Record<StrKey, string>> = STR.en
+      let s: string = features[key] ?? dict[key] ?? english[key] ?? key
       args.forEach((a, i) => {
         s = s.replace(`{${i}}`, String(a))
       })

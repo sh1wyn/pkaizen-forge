@@ -7,6 +7,7 @@ import type {
   CleanTarget,
   CleanResult,
   DriverEntry,
+  DriverInstaller,
   WingetUpgrade,
   VendorLink,
   StartupItem,
@@ -21,6 +22,7 @@ import type {
   DnsBench,
   TweakRelevance,
   DiskBenchResult,
+  GameLibrary,
   DetailedInfo,
   BrowserReport,
   SpeedResult
@@ -48,11 +50,14 @@ declare global {
       getTweakRelevance: () => Promise<TweakRelevance[]>
       diskBench: () => Promise<DiskBenchResult>
       cancelDiskBench: () => Promise<void>
+      getInstalledGames: () => Promise<GameLibrary>
 
       previewClean: () => Promise<CleanTarget[]>
       runClean: (ids: string[]) => Promise<CleanResult[]>
 
       scanDrivers: () => Promise<DriverEntry[]>
+      getDriverInstallers: () => Promise<DriverInstaller[]>
+      launchDriverInstaller: (id: string) => Promise<ActionResult>
       getWingetUpgrades: () => Promise<WingetUpgrade[]>
       getVendorLinks: () => Promise<VendorLink[]>
       getGpuDriverStatus: () => Promise<GpuDriverStatus[]>
@@ -79,6 +84,7 @@ declare global {
       onSpeedProgress: (cb: (p: { phase: 'down' | 'up'; mbps: number; percent: number }) => void) => () => void
       getBrowserReport: () => Promise<BrowserReport>
       installBrowser: (id: string) => Promise<ActionResult>
+      openBrowserDefaults: (id: string) => Promise<ActionResult>
       generateReport: () => Promise<ActionResult & { path?: string }>
 
       openExternal: (url: string) => Promise<void>
