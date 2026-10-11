@@ -22,6 +22,7 @@
 .gaming-block legend { font-weight: 700; padding: 0 8px; font-size: 17px; }
 .gaming-block p + p { margin-top: 10px; }
 .gaming-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 14px; }
+.grid.gaming-reference-grid { grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); }
 .gaming-field { display: flex; flex-direction: column; gap: 7px; margin: 14px 0; min-width: 0; font-size: 13px; }
 .gaming-field input, .gaming-field select {
   width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--border-light);

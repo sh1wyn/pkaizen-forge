@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { GamingHardware } from '../../../shared/types'
 import { useI18n, type StrKey } from '../lib/i18n'
 import { GAMES, gameGuide } from '../lib/gaming'
-import { REFERENCE_GAMES, REFERENCE_SOURCE, referenceGpu, referencesFor, referenceScreenVerdict, roundedFps, SUPPORTED_GPUS } from '../lib/gameReferences'
+import { REFERENCE_GAMES, REFERENCE_SOURCES, referenceGpu, referencesFor, referenceScreenVerdict, roundedFps, SUPPORTED_GPUS } from '../lib/gameReferences'
 
 const VERDICT: Record<ReturnType<typeof referenceScreenVerdict>, StrKey> = {
-  unknown: 'simple.unknownHz', below: 'simple.below', variable: 'simple.variable', headroom: 'simple.headroom'
+  unknown: 'simple.unknownHz', below: 'simple.below', variable: 'simple.variable', headroom: 'simple.headroom', capped: 'simple.capped'
 }
 
-export default function GamingOverview(): React.JSX.Element {
+export default function GamingOverview({ onMeasure }: { onMeasure: () => void }): React.JSX.Element {
   const { t, lang } = useI18n()
   const [hardware, setHardware] = useState<GamingHardware | null>(null)
   const [gpuIndex, setGpuIndex] = useState(0)
@@ -27,6 +27,7 @@ export default function GamingOverview(): React.JSX.Element {
     setError('')
     setHardware(null)
     setInstalled([])
+    setGame('all')
     setLibraryErrors([])
     const [config, library] = await Promise.allSettled([window.api.getGamingHardware(), window.api.getInstalledGames()])
     if (token !== generation.current) return
@@ -63,6 +64,8 @@ export default function GamingOverview(): React.JSX.Element {
   const matched = gpu ? referenceGpu(gpu.model, hardware?.isLaptop ?? null) : null
   const references = gpu ? referencesFor(gpu.model, hardware?.isLaptop ?? null, width, height) : []
   const rows = references.filter((row) => game === 'all' || row.id === game)
+  const availableIds = new Set(references.map((row) => row.id))
+  const emptyReason = !matched ? 'simple.noGpu' : references.length === 0 ? 'simple.noResolution' : rows.length === 0 ? 'simple.noGame' : null
   const sameResolution = display?.resX === width && display?.resY === height
   const resolutionChoices = [...new Set([
     ...(display && display.resX > 0 && display.resY > 0 ? [`${display.resX}x${display.resY}`] : []),
@@ -117,36 +120,48 @@ export default function GamingOverview(): React.JSX.Element {
         <label className="gaming-field">{t('simple.game')}
           <select aria-label={t('simple.game')} value={game} onChange={(event) => setGame(event.target.value)}>
             <option value="all">{t('simple.all')}</option>
-            {[...games].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            {availableIds.size > 0 && <optgroup label={t('simple.availableGroup', availableIds.size)}>
+              {[...games].filter(([id]) => availableIds.has(id)).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </optgroup>}
+            <optgroup label={t('simple.unavailableGroup')}>
+              {[...games].filter(([id]) => !availableIds.has(id)).map(([id, name]) =>
+                <option key={id} value={id}>{name} — {t('simple.notDocumented')}</option>)}
+            </optgroup>
           </select>
         </label>
       </div>
+      <p className="sub">{t('simple.available', availableIds.size, references.length)}</p>
       {display && <p className="sub">{display.hz > 0 ? t('simple.windows', display.hz) : t('simple.unknownHz')}</p>}
       <p className="banner info">{t('simple.testPc')}</p>
-      {!matched ? <p role="status" className="banner warn">{t('simple.noGpu')}</p> :
-        references.length === 0 ? <p role="status" className="banner info">{t('simple.noResolution')}</p> :
-          rows.length === 0 ? <p role="status" className="banner info">{t('simple.noGame')}</p> : null}
+      {emptyReason && <div role="status" className="banner info">
+        <p>{t(emptyReason)}</p>
+        <button className="btn" onClick={onMeasure}>{t('simple.measureInstead')}</button>
+      </div>}
       {rows.length > 0 && !sameResolution && <p className="banner info">{t('simple.otherResolution')}</p>}
-      <div className="grid">
-        {rows.map((row) => <article className="card gaming-block" key={row.id} aria-label={row.name}>
+      <div className="grid gaming-reference-grid">
+        {rows.map((row) => <article className="card gaming-block" key={`${row.id}:${row.preset}`} aria-label={row.name}>
           <h3>{row.name}</h3>
           <p>{t('simple.settings', row.preset, row.width, row.height)}</p>
           <div className="big">{t('simple.fps', roundedFps(row.average))}</div>
           <p className="sub">{t('simple.reference')} · {row.gpu}</p>
           <p>{t('simple.low', roundedFps(row.low1))}</p>
-          {sameResolution && display && <p className="gaming-advice">{t(VERDICT[referenceScreenVerdict(row.average, row.low1, display.hz)], display.hz)}</p>}
+          {row.capFps && <p className="banner info">{t('simple.cap', row.capFps)}</p>}
+          {sameResolution && display && <p className="gaming-advice">{t(VERDICT[referenceScreenVerdict(row.average, row.low1, display.hz, row.capFps)], display.hz)}</p>}
           {row.cpuSensitive && <p className="sub">{t('simple.cpuSensitive')}</p>}
-          <p className="sub">{t('simple.source', REFERENCE_SOURCE.publisher, REFERENCE_SOURCE.published, REFERENCE_SOURCE.verified)}</p>
+          {row.scene !== 'unspecified' && <p className="sub">{t(row.scene === 'built-in' ? 'simple.builtinScene' : 'simple.gameplayScene')}</p>}
+          <p className="sub">{t('simple.source', row.source.publisher, row.source.published, row.source.verified)}</p>
         </article>)}
       </div>
       <details className="card gaming-block">
         <summary>{t('simple.method')}</summary>
         <p>{t('simple.methodText')}</p><p>{t('simple.rendering')}</p>
-        <p>{t('simple.coverage')}</p><p>{SUPPORTED_GPUS.join(' · ')}</p>
-        <p>{REFERENCE_SOURCE.title} · {REFERENCE_SOURCE.cpu} · {REFERENCE_SOURCE.memory} · {REFERENCE_SOURCE.os}</p>
-        <p>{REFERENCE_SOURCE.drivers}</p>
-        <code className="reference-address">{REFERENCE_SOURCE.url}</code>
-        {rows.map((row) => <p key={row.id} className="sub">{row.name}: {row.average} FPS / 1% low {row.low1} FPS<br />
+        <p>{t('simple.coverage', REFERENCE_GAMES.length, SUPPORTED_GPUS.length)}</p><p>{SUPPORTED_GPUS.join(' · ')}</p>
+        {REFERENCE_SOURCES.map((source) => <div key={source.url}>
+          <p>{source.title} · {source.published}</p>
+          <p>{source.cpu} · {source.memory} · {source.os} · {source.drivers}</p>
+          <code className="reference-address">{source.url}</code>
+        </div>)}
+        {rows.map((row) => <p key={`${row.id}:${row.preset}`} className="sub">{row.name} ({row.preset}): {row.average} FPS / 1% low {row.low1} FPS<br />
           <code className="reference-address">{row.chartUrl}</code></p>)}
         {libraryErrors.map((message, index) => <p key={index} role="alert">{message}</p>)}
       </details>

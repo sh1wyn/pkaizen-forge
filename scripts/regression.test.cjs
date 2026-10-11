@@ -53,11 +53,65 @@ test('published references match only exact supported desktop GPU and measured r
   for (const laptop of [true, null]) assert.equal(referenceGpu('RTX 5070 Ti', laptop), null)
   for (const [width, height] of [[1920, 1080], [1440, 2560], [0, 0]]) assert.equal(referencesFor('RTX 5070 Ti', false, width, height).length, 0)
   const rows = referencesFor('RTX 5070 Ti', false, 2560, 1440)
-  assert.equal(rows.length, 3)
+  assert.equal(rows.length, 35)
   assert.equal(rows[0].average, 479)
   assert.equal(rows[0].low1, 296)
   assert.equal(roundedFps(rows[0].average), 480)
   assert.equal(referencesFor('RTX 5070 Ti', false, 3840, 2160)[1].average, 67)
+})
+
+test('reference catalogue covers 20 actual games with sparse GPU coverage and separate settings', () => {
+  const { REFERENCE_GAMES, SUPPORTED_GPUS, referencesFor, referenceScreenVerdict } = load('src/renderer/src/lib/gameReferences.ts')
+  assert.equal(REFERENCE_GAMES.length, 20)
+  assert.equal(new Set(REFERENCE_GAMES.map(({ id }) => id)).size, 20)
+  assert.equal(SUPPORTED_GPUS.length, 7)
+  let total = 0
+  for (const gpu of SUPPORTED_GPUS) {
+    for (const [width, height] of [[2560, 1440], [3840, 2160]]) {
+      const rows = referencesFor(gpu, false, width, height)
+      const games = new Set(rows.map(({ id }) => id))
+      assert.equal(games.size, gpu === 'RTX 5070 Ti' ? 20 : gpu === 'RX 9070 XT' ? 15 : 5)
+      assert.equal(rows.length, gpu === 'RTX 5070 Ti' ? 35 : gpu === 'RX 9070 XT' ? 30 : 5)
+      assert.equal(new Set(rows.map(({ id, preset }) => `${id}:${preset}`)).size, rows.length)
+      for (const row of rows) {
+        assert.equal(row.gpu, gpu)
+        assert.equal(row.width, width)
+        assert.equal(row.height, height)
+        assert.ok(Number.isFinite(row.average) && row.average > 0)
+        assert.ok(Number.isFinite(row.low1) && row.low1 > 0 && row.low1 <= row.average)
+        assert.ok(row.preset.length > 0)
+        assert.match(row.chartUrl, /^https:\/\/www\.techspot\.com\/articles-info\/(?:2955|3130)\/bench\/[A-Za-z0-9-]+\.png$/)
+        assert.equal(row.source.cpu, 'AMD Ryzen 7 9800X3D')
+        assert.equal(row.source.verified, '2026-10-11')
+        assert.ok(row.chartUrl.includes('3130') === row.source.url.includes('3130'))
+        assert.ok(['in-game', 'built-in', 'unspecified'].includes(row.scene))
+      }
+      total += rows.length
+    }
+  }
+  assert.equal(total, 180)
+  const rows = referencesFor('RTX 5070 Ti', false, 2560, 1440)
+  const apex = rows.filter(({ id }) => id === 'apex')
+  assert.equal(apex.length, 2)
+  assert.deepEqual(Array.from(apex, ({ average, low1, capFps }) => [average, low1, capFps]), [[300, 268, 300], [300, 260, 300]])
+  assert.equal(apex[0].source.published, '2026-05')
+  assert.equal(apex[0].source.os, 'Windows 11 25H2')
+  assert.equal(referenceScreenVerdict(300, 268, 540, 300), 'capped')
+  assert.equal(referenceScreenVerdict(300, 268, 240, 300), 'headroom')
+  assert.equal(referenceScreenVerdict(163, 143, 540, 160), 'capped')
+  assert.equal(referenceScreenVerdict(300, 268, 0, 300), 'unknown')
+  const fortnite = rows.filter(({ id }) => id === 'fortnite')
+  assert.deepEqual(Array.from(fortnite, ({ preset, average, low1 }) => [preset, average, low1]), [
+    ['Performance Mode', 733, 398], ['Epic, Ray Tracing', 87, 75]
+  ])
+  const amd4k = referencesFor('AMD Radeon RX 9070 XT', false, 3840, 2160)
+  assert.deepEqual(Array.from(amd4k.filter(({ id }) => id === 'apex'), ({ average, low1 }) => [average, low1]), [[240, 207], [211, 188]])
+  assert.deepEqual(Array.from(amd4k.filter(({ id }) => id === 'fortnite'), ({ average, low1 }) => [average, low1]), [[528, 343], [45, 38]])
+  assert.ok(rows.some(({ id }) => id === 'gta-enhanced'))
+  for (const id of ['gta', 'warzone', 'minecraft']) assert.ok(!rows.some((row) => row.id === id), 'No substitution between games or editions')
+  assert.ok(!referencesFor('RTX 5080', false, 2560, 1440).some(({ id }) => id === 'apex'), 'No newer two-GPU data assigned to another GPU')
+  assert.equal(referencesFor('RX 9070 XT', false, 1920, 1080).length, 0)
+  assert.equal(referencesFor('RX 9070 XT', true, 2560, 1440).length, 0)
 })
 
 const recordedCsv = (fps = 100, count = 3001) => 'Application,ProcessID,SwapChainAddress,TimeInSeconds,MsBetweenPresents\n' +

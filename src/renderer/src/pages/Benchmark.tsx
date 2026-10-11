@@ -149,7 +149,7 @@ export default function Benchmark(): React.JSX.Element {
           className={`btn ${view === id ? 'primary' : ''}`} disabled={phase !== 'idle' || recordingBusy} onClick={() => setView(id)}>{t(key)}</button>)}
       </div>
       {view === 'games' && <GameRecording onBusy={setRecordingBusy} />}
-      {view === 'references' && <GamingOverview />}
+      {view === 'references' && <GamingOverview onMeasure={() => setView('games')} />}
       {view === 'local' && <>
       <h2>{t('gaming.synthetic')}</h2>
       <p className="subtitle">{t('forge.explanation')}</p>
