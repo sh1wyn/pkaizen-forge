@@ -15,6 +15,7 @@ export default function GamingOverview({ onMeasure }: { onMeasure: () => void })
   const [displayIndex, setDisplayIndex] = useState(0)
   const [resolution, setResolution] = useState('')
   const [game, setGame] = useState('all')
+  const [declaredType, setDeclaredType] = useState<boolean | null>(null)
   const [installed, setInstalled] = useState<string[]>([])
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState('')
@@ -28,6 +29,7 @@ export default function GamingOverview({ onMeasure }: { onMeasure: () => void })
     setHardware(null)
     setInstalled([])
     setGame('all')
+    setDeclaredType(null)
     setLibraryErrors([])
     const [config, library] = await Promise.allSettled([window.api.getGamingHardware(), window.api.getInstalledGames()])
     if (token !== generation.current) return
@@ -61,15 +63,16 @@ export default function GamingOverview({ onMeasure }: { onMeasure: () => void })
   const display = hardware?.displays[displayIndex]
   const gpu = hardware?.gpus[gpuIndex]
   const [width, height] = resolution.split('x').map(Number)
-  const matched = gpu ? referenceGpu(gpu.model, hardware?.isLaptop ?? null) : null
-  const references = gpu ? referencesFor(gpu.model, hardware?.isLaptop ?? null, width, height) : []
+  const laptop = hardware?.isLaptop ?? declaredType
+  const matched = gpu ? referenceGpu(gpu.model, laptop, gpu.vramMB) : null
+  const references = gpu ? referencesFor(gpu.model, laptop, width, height, gpu.vramMB) : []
   const rows = references.filter((row) => game === 'all' || row.id === game)
   const availableIds = new Set(references.map((row) => row.id))
   const emptyReason = !matched ? 'simple.noGpu' : references.length === 0 ? 'simple.noResolution' : rows.length === 0 ? 'simple.noGame' : null
   const sameResolution = display?.resX === width && display?.resY === height
   const resolutionChoices = [...new Set([
     ...(display && display.resX > 0 && display.resY > 0 ? [`${display.resX}x${display.resY}`] : []),
-    '2560x1440', '3840x2160'
+    '1920x1080', '2560x1440', '3840x2160'
   ])]
   const games = new Map<string, string>(REFERENCE_GAMES.map((entry) => [entry.id, entry.name]))
   for (const entry of GAMES) if (entry.id !== 'other' && !games.has(entry.id)) games.set(entry.id, entry.name)
@@ -92,6 +95,14 @@ export default function GamingOverview({ onMeasure }: { onMeasure: () => void })
         t(hardware.isLaptop === true ? 'simple.laptop' : hardware.isLaptop === false ? 'simple.desktop' : 'simple.deviceUnknown')
       }</p>
       <div className="gaming-fields">
+        {hardware.isLaptop === null && <label className="gaming-field">{t('simple.deviceType')}
+          <select aria-label={t('simple.deviceType')} value={declaredType === null ? '' : declaredType ? 'laptop' : 'desktop'}
+            onChange={(event) => setDeclaredType(event.target.value === 'desktop' ? false : event.target.value === 'laptop' ? true : null)}>
+            <option value="">{t('ready.unknown')}</option>
+            <option value="desktop">{t('simple.desktop')}</option>
+            <option value="laptop">{t('simple.laptop')}</option>
+          </select>
+        </label>}
         <label className="gaming-field">{t('simple.gpu')}
           <select aria-label={t('simple.gpu')} value={gpuIndex} onChange={(event) => setGpuIndex(Number(event.target.value))}>
             {hardware.gpus.length !== 1 && <option value={-1}>{t('simple.gpu')}</option>}
@@ -130,6 +141,7 @@ export default function GamingOverview({ onMeasure }: { onMeasure: () => void })
           </select>
         </label>
       </div>
+      {hardware.isLaptop === null && declaredType !== null && <p className="banner info">{t('simple.declaredType')}</p>}
       <p className="sub">{t('simple.available', availableIds.size, references.length)}</p>
       {display && <p className="sub">{display.hz > 0 ? t('simple.windows', display.hz) : t('simple.unknownHz')}</p>}
       <p className="banner info">{t('simple.testPc')}</p>
@@ -144,6 +156,8 @@ export default function GamingOverview({ onMeasure }: { onMeasure: () => void })
           <p>{t('simple.settings', row.preset, row.width, row.height)}</p>
           <div className="big">{t('simple.fps', roundedFps(row.average))}</div>
           <p className="sub">{t('simple.reference')} · {row.gpu}</p>
+          <p className="sub">{t('simple.sourcePc', row.source.cpu, row.source.memory)}</p>
+          {row.gpu.startsWith('Arc ') && <p className="banner info">{t('simple.arcConditions')}</p>}
           <p>{t('simple.low', roundedFps(row.low1))}</p>
           {row.capFps && <p className="banner info">{t('simple.cap', row.capFps)}</p>}
           {sameResolution && display && <p className="gaming-advice">{t(VERDICT[referenceScreenVerdict(row.average, row.low1, display.hz, row.capFps)], display.hz)}</p>}
@@ -158,8 +172,9 @@ export default function GamingOverview({ onMeasure }: { onMeasure: () => void })
         <p>{t('simple.coverage', REFERENCE_GAMES.length, SUPPORTED_GPUS.length)}</p><p>{SUPPORTED_GPUS.join(' · ')}</p>
         {REFERENCE_SOURCES.map((source) => <div key={source.url}>
           <p>{source.title} · {source.published}</p>
-          <p>{source.cpu} · {source.memory} · {source.os} · {source.drivers}</p>
+          <p>{source.cpu} · {source.memory} · {source.os || t('simple.sourceOsUnknown')} · {source.drivers}</p>
           <code className="reference-address">{source.url}</code>
+          {'followUpUrl' in source && <p><code className="reference-address">{source.followUpUrl}</code></p>}
         </div>)}
         {rows.map((row) => <p key={`${row.id}:${row.preset}`} className="sub">{row.name} ({row.preset}): {row.average} FPS / 1% low {row.low1} FPS<br />
           <code className="reference-address">{row.chartUrl}</code></p>)}

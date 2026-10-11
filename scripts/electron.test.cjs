@@ -59,10 +59,11 @@ test('Electron opens, remains idle, protects actions and completes or cancels be
         { id: '3', model: 'Test display', main: false, resX: 1920, resY: 1080, hz: 60, connection: '' }
       ]
       replace('system:displays', () => displays)
-      replace('system:gamingHardware', () => ({
+      globalThis.smoke.hardware = {
         cpu: 'Intel Core i7-14700KF', gpus: [{ model: 'NVIDIA GeForce RTX 5070 Ti', vendor: 'NVIDIA', vramMB: 16303 }],
         ramGB: 32, isLaptop: false, displays, warnings: []
-      }))
+      }
+      replace('system:gamingHardware', () => globalThis.smoke.hardware)
       replace('games:toolStatus', () => ({ ready: !!globalThis.smoke.toolReady, version: '2.6.0', supported: true }))
       replace('games:installTool', () => { globalThis.smoke.toolReady = true })
       replace('games:removeTool', () => { globalThis.smoke.toolReady = false })
@@ -261,6 +262,79 @@ test('Electron opens, remains idle, protects actions and completes or cancels be
     await page.getByLabel('My gaming display', { exact: true }).selectOption('1')
     await expect(page.getByRole('status')).toContainText('No reference at this resolution')
     await expect(page.getByRole('article')).toHaveCount(0)
+    const originalHardware = await electron.evaluate(() => globalThis.smoke.hardware)
+    const setHardware = async (overrides) => {
+      await electron.evaluate((_electron, hardware) => { globalThis.smoke.hardware = hardware }, { ...originalHardware, ...overrides })
+      await page.getByRole('tab', { name: 'My measured FPS', exact: true }).click()
+      await page.getByRole('tab', { name: 'Game FPS references', exact: true }).click()
+      await expect(page.getByLabel('Game', { exact: true })).toBeVisible()
+    }
+    const desktop1080 = [{ id: '1', model: '1080p fixture', main: true, resX: 1920, resY: 1080, hz: 144, connection: '' }]
+    for (const [cpu, model, vendor, fps] of [
+      ['AMD Ryzen 5 5600', 'NVIDIA GeForce RTX 4060', 'NVIDIA', 'About 80 FPS'],
+      ['Intel Core i5-12400F', 'AMD Radeon RX 6600', 'AMD', 'About 60 FPS']
+    ]) {
+      await setHardware({ cpu, ramGB: 16, gpus: [{ model, vendor, vramMB: 8192 }], displays: desktop1080 })
+      await expect(page.getByRole('article')).toHaveCount(5)
+      await expect(page.getByLabel('Resolution for the published tests', { exact: true })).toHaveValue('1920x1080')
+      const cyberpunk = page.getByRole('article', { name: 'Cyberpunk 2077: Phantom Liberty', exact: true })
+      await expect(cyberpunk).toHaveCount(2)
+      await expect(cyberpunk.filter({ hasText: 'High' })).toContainText(fps)
+      await expect(cyberpunk.filter({ hasText: 'Medium, native' })).toContainText('7800X3D')
+      await expect(cyberpunk.filter({ hasText: 'High' })).toContainText('9800X3D')
+    }
+    await setHardware({ cpu: 'Intel Core i5-12400', gpus: [{ model: 'Intel(R) Arc(TM) B580 Graphics', vendor: 'Intel', vramMB: 12288 }] })
+    await expect(page.getByRole('article')).toHaveCount(4)
+    await expect(page.getByRole('article', { name: 'Cyberpunk 2077: Phantom Liberty', exact: true })).toContainText('About 65 FPS')
+    await expect(page.getByRole('article').first()).toContainText('Resizable BAR enabled')
+    await page.locator('.lang-select').selectOption('fr')
+    await page.getByRole('tab', { name: 'Repères FPS en jeu', exact: true }).click()
+    await expect(page.getByRole('article').first()).toContainText('Resizable BAR activé')
+    await page.getByRole('article').first().scrollIntoViewIfNeeded()
+    await page.screenshot({ path: join(artifacts, 'intel-arc-references.png'), fullPage: true })
+    await page.locator('.lang-select').selectOption('en')
+    await page.getByRole('tab', { name: 'Game FPS references', exact: true }).click()
+    for (const overrides of [
+      { gpus: [{ model: 'Intel UHD Graphics 770', vendor: 'Intel', vramMB: 0 }] },
+      { isLaptop: true, gpus: [{ model: 'NVIDIA GeForce RTX 4060 Laptop GPU', vendor: 'NVIDIA', vramMB: 8192 }] },
+      { gpus: [], displays: [], cpu: '', warnings: ['GPU inventory unavailable'] },
+      { gpus: [{ model: 'NVIDIA GeForce RTX 4060 Ti', vendor: 'NVIDIA', vramMB: 0 }] }
+    ]) {
+      await setHardware(overrides)
+      await expect(page.getByRole('article')).toHaveCount(0)
+      await expect(page.getByRole('status')).toContainText('No verified reference')
+      await expect(page.getByRole('button', { name: 'Measure my own FPS instead', exact: true })).toBeEnabled()
+      if (!overrides.gpus.length) await expect(page.getByRole('alert')).toContainText('GPU inventory unavailable')
+    }
+    for (const vramMB of [8192, 16384]) {
+      await setHardware({ gpus: [{ model: 'NVIDIA GeForce RTX 4060 Ti', vendor: 'NVIDIA', vramMB }] })
+      await expect(page.getByRole('article')).toHaveCount(5)
+      await expect(page.getByRole('article', { name: 'Hogwarts Legacy', exact: true })).toContainText(`RTX 4060 Ti ${vramMB / 1024}GB`)
+    }
+    await setHardware({ isLaptop: null, gpus: [{ model: 'AMD Radeon RX 6600', vendor: 'AMD', vramMB: 8192 }] })
+    await expect(page.getByRole('article')).toHaveCount(0)
+    const deviceType = page.getByLabel('Confirm PC type (not detected)', { exact: true })
+    await deviceType.selectOption('desktop')
+    await expect(page.getByRole('article')).toHaveCount(5)
+    await expect(page.getByText('PC type supplied by you, not detected automatically. Desktop references must not be used for a laptop.', { exact: true })).toBeVisible()
+    await deviceType.selectOption('laptop')
+    await expect(page.getByRole('article')).toHaveCount(0)
+    const hybrid = [
+      { model: 'Intel UHD Graphics 770', vendor: 'Intel', vramMB: 0 },
+      { model: 'AMD Radeon RX 6600', vendor: 'AMD', vramMB: 8192 }
+    ]
+    await setHardware({ gpus: hybrid })
+    const gpuSelect = page.getByLabel('Graphics card to compare', { exact: true })
+    await expect(gpuSelect).toHaveValue('-1')
+    await expect(page.getByRole('article')).toHaveCount(0)
+    await gpuSelect.selectOption('1')
+    await expect(page.getByRole('article')).toHaveCount(5)
+    await gpuSelect.selectOption('0')
+    await expect(page.getByRole('article')).toHaveCount(0)
+    await setHardware({ isLaptop: true, gpus: hybrid })
+    await gpuSelect.selectOption('1')
+    await expect(page.getByRole('article')).toHaveCount(0)
+    await setHardware({})
     await page.getByRole('tab', { name: 'My measured FPS', exact: true }).click()
     await expect(page.getByRole('region', { name: 'Measured on this PC', exact: true })).toContainText('100 FPS')
     await page.getByText('Advanced: analyze my own game capture', { exact: true }).click()

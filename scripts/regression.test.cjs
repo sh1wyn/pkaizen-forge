@@ -49,7 +49,7 @@ test('native displays preserve names, active Hz, portrait geometry and physical 
 test('published references match only exact supported desktop GPU and measured resolution', () => {
   const { referenceGpu, referencesFor, roundedFps } = load('src/renderer/src/lib/gameReferences.ts')
   assert.equal(referenceGpu('NVIDIA GeForce RTX 5070 Ti', false), 'RTX 5070 Ti')
-  for (const model of ['RTX 5070', 'RTX 5070 Ti Laptop GPU', 'RTX 4070 Ti', 'RTX 4070 Super OC']) assert.equal(referenceGpu(model, false), null)
+  for (const model of ['RTX 5070', 'RTX 5070 Ti Laptop GPU', 'RTX 4070 Ti Super', 'RTX 4070 Super OC']) assert.equal(referenceGpu(model, false), null)
   for (const laptop of [true, null]) assert.equal(referenceGpu('RTX 5070 Ti', laptop), null)
   for (const [width, height] of [[1920, 1080], [1440, 2560], [0, 0]]) assert.equal(referencesFor('RTX 5070 Ti', false, width, height).length, 0)
   const rows = referencesFor('RTX 5070 Ti', false, 2560, 1440)
@@ -60,18 +60,21 @@ test('published references match only exact supported desktop GPU and measured r
   assert.equal(referencesFor('RTX 5070 Ti', false, 3840, 2160)[1].average, 67)
 })
 
-test('reference catalogue covers 20 actual games with sparse GPU coverage and separate settings', () => {
+test('reference catalogue covers 21 games and 41 GPU variants without extrapolation', () => {
   const { REFERENCE_GAMES, SUPPORTED_GPUS, referencesFor, referenceScreenVerdict } = load('src/renderer/src/lib/gameReferences.ts')
-  assert.equal(REFERENCE_GAMES.length, 20)
-  assert.equal(new Set(REFERENCE_GAMES.map(({ id }) => id)).size, 20)
-  assert.equal(SUPPORTED_GPUS.length, 7)
+  assert.equal(REFERENCE_GAMES.length, 21)
+  assert.equal(new Set(REFERENCE_GAMES.map(({ id }) => id)).size, 21)
+  assert.equal(SUPPORTED_GPUS.length, 41)
   let total = 0
   for (const gpu of SUPPORTED_GPUS) {
-    for (const [width, height] of [[2560, 1440], [3840, 2160]]) {
+    for (const [width, height] of [[1920, 1080], [2560, 1440], [3840, 2160]]) {
       const rows = referencesFor(gpu, false, width, height)
       const games = new Set(rows.map(({ id }) => id))
-      assert.equal(games.size, gpu === 'RTX 5070 Ti' ? 20 : gpu === 'RX 9070 XT' ? 15 : 5)
-      assert.equal(rows.length, gpu === 'RTX 5070 Ti' ? 35 : gpu === 'RX 9070 XT' ? 30 : 5)
+      assert.ok(games.size <= REFERENCE_GAMES.length)
+      if (width !== 1920 && ['RTX 5070 Ti', 'RX 9070 XT'].includes(gpu)) {
+        assert.equal(games.size, gpu === 'RTX 5070 Ti' ? 20 : 15)
+        assert.equal(rows.length, gpu === 'RTX 5070 Ti' ? 35 : 30)
+      }
       assert.equal(new Set(rows.map(({ id, preset }) => `${id}:${preset}`)).size, rows.length)
       for (const row of rows) {
         assert.equal(row.gpu, gpu)
@@ -80,16 +83,16 @@ test('reference catalogue covers 20 actual games with sparse GPU coverage and se
         assert.ok(Number.isFinite(row.average) && row.average > 0)
         assert.ok(Number.isFinite(row.low1) && row.low1 > 0 && row.low1 <= row.average)
         assert.ok(row.preset.length > 0)
-        assert.match(row.chartUrl, /^https:\/\/www\.techspot\.com\/articles-info\/(?:2955|3130)\/bench\/[A-Za-z0-9-]+\.png$/)
-        assert.equal(row.source.cpu, 'AMD Ryzen 7 9800X3D')
+        assert.match(row.chartUrl, /^https:\/\/www\.techspot\.com\/articles-info\/(?:2743|2935|2955|3130)\/bench\/[A-Za-z0-9_-]+\.png$/)
+        assert.equal(row.source.cpu, row.chartUrl.includes('2743') ? 'AMD Ryzen 7 7800X3D' : 'AMD Ryzen 7 9800X3D')
         assert.equal(row.source.verified, '2026-10-11')
-        assert.ok(row.chartUrl.includes('3130') === row.source.url.includes('3130'))
+        assert.equal(row.chartUrl.split('/')[4], row.source.url.split('/')[4].split('-')[0])
         assert.ok(['in-game', 'built-in', 'unspecified'].includes(row.scene))
       }
       total += rows.length
     }
   }
-  assert.equal(total, 180)
+  assert.equal(total, 391)
   const rows = referencesFor('RTX 5070 Ti', false, 2560, 1440)
   const apex = rows.filter(({ id }) => id === 'apex')
   assert.equal(apex.length, 2)
@@ -112,6 +115,69 @@ test('reference catalogue covers 20 actual games with sparse GPU coverage and se
   assert.ok(!referencesFor('RTX 5080', false, 2560, 1440).some(({ id }) => id === 'apex'), 'No newer two-GPU data assigned to another GPU')
   assert.equal(referencesFor('RX 9070 XT', false, 1920, 1080).length, 0)
   assert.equal(referencesFor('RX 9070 XT', true, 2560, 1440).length, 0)
+})
+
+test('published references distinguish memory SKUs, Intel names and unsupported hardware', () => {
+  const { referenceGpu, referencesFor } = load('src/renderer/src/lib/gameReferences.ts')
+  for (const [model, memory, expected] of [
+    ['NVIDIA GeForce RTX 3060', 12200, 'RTX 3060 12GB'],
+    ['RTX 3080', 10240, 'RTX 3080 10GB'],
+    ['RTX 3050', 8192, 'RTX 3050 8GB'],
+    ['RTX 4060 Ti', 8100, 'RTX 4060 Ti 8GB'],
+    ['RTX 4060 Ti', 16303, 'RTX 4060 Ti 16GB'],
+    ['Intel(R) Arc(TM) A770 Graphics', 16384, 'Arc A770 16GB'],
+    ['Intel(R) Arc(TM) B580 Graphics', 12288, 'Arc B580'],
+    ['AMD Radeon RX 6600', 8192, 'RX 6600'],
+    ['NVIDIA GeForce GTX 1080 Ti', 11264, 'GTX 1080 Ti']
+  ]) assert.equal(referenceGpu(model, false, memory), expected)
+  for (const [model, memory] of [
+    ['RTX 3060', 8192], ['RTX 3080', 12288], ['RTX 3050', 6144], ['Arc A770', 8192],
+    ['RTX 4060 Ti', 0], ['RTX 4060 Ti', NaN], ['RTX 4060 Ti', -1], ['RTX 4060 Ti', 12000],
+    ['RTX 3060 12GB', 8192], ['RTX 4060 Ti 8GB', 16384], ['RX 6500 XT', 8192],
+    ['Intel UHD Graphics 770', 0], ['AMD Radeon 780M Graphics', 0], ['', 0],
+    ['RTX 4070 Mobile', 8192], ['RTX 4070 Max-Q', 8192]
+  ]) {
+    assert.equal(referenceGpu(model, false, memory), null, `${model}/${memory}`)
+    assert.equal(referencesFor(model, false, 1920, 1080, memory).length, 0)
+  }
+  for (const model of ['RTX 3060', 'RTX 3080', 'RTX 3050', 'RTX 4060 Ti', 'Arc A770', 'RX 6500 XT']) {
+    assert.equal(referenceGpu(model, false), null, 'An ambiguous memory variant must not be guessed')
+  }
+  assert.equal(referenceGpu('NVIDIA GeForce RTX 3060 12 GB', false), 'RTX 3060 12GB')
+  for (const laptop of [true, null]) {
+    for (const model of ['RTX 4060', 'RX 6600', 'Arc B580']) assert.equal(referenceGpu(model, laptop), null)
+  }
+})
+
+test('published references retain cross-vendor golden values, low FPS and actual source CPUs', () => {
+  const { referencesFor, roundedFps } = load('src/renderer/src/lib/gameReferences.ts')
+  const rows = (model, width, height, memory) => referencesFor(model, false, width, height, memory)
+  for (const [gpu, width, height, id, preset, average, low1, month] of [
+    ['GTX 1080 Ti', 1920, 1080, 'cyberpunk', 'Medium, native (FSR off)', 81, 71, '2023-09'],
+    ['RX 5700 XT', 3840, 2160, 'cyberpunk', 'Medium, native (FSR off)', 23, 19, '2023-09'],
+    ['RX 6600', 1920, 1080, 'cyberpunk', 'High', 60, 52, '2024-12'],
+    ['Arc B580', 2560, 1440, 'cyberpunk', 'High', 63, 51, '2024-12'],
+    ['Arc A770 16GB', 1920, 1080, 'warthunder', 'Movie', 210, 171, '2024-12'],
+    ['RTX 4060 Ti 8GB', 2560, 1440, 'hogwarts', 'High', 63, 43, '2024-12'],
+    ['RTX 4060 Ti 16GB', 2560, 1440, 'hogwarts', 'High', 66, 44, '2024-12'],
+    ['RTX 4060', 1920, 1080, 'spider-remastered', 'Very High', 90, 68, '2024-12'],
+    ['Arc B580', 2560, 1440, 'spider-remastered', 'Very High', 110, 83, '2024-12']
+  ]) {
+    const row = rows(gpu, width, height).find((row) => row.id === id && row.preset === preset)
+    assert.ok(row, `${gpu}/${id}/${preset}/${width}`)
+    assert.deepEqual([row.average, row.low1, row.source.published], [average, low1, month])
+  }
+  const older = rows('RTX 4070', 1920, 1080).find((row) => row.id === 'cyberpunk' && row.preset === 'High')
+  const newer = rows('RTX 4070', 2560, 1440).filter((row) => row.id === 'cyberpunk' && row.preset === 'High')
+  assert.equal(older.source.published, '2024-12')
+  assert.equal(newer.length, 1)
+  assert.equal(newer[0].source.published, '2025-02', 'Use newest exact test, never blend independent sources')
+  const low = rows('RX 6500 XT', 3840, 2160, 4096)[0]
+  assert.deepEqual([low.average, low.low1, roundedFps(low.average), roundedFps(low.low1)], [2, 1, 2, 1])
+  assert.equal(low.source.os, null)
+  assert.equal(low.source.cpu, 'AMD Ryzen 7 7800X3D')
+  assert.equal(rows('Arc B580', 3840, 2160).length, 0, 'No conversion from 1440p')
+  assert.equal(rows('RTX 3060', 1920, 1080, 12288).length, 1, 'Unspecified 3060 memory in another review is not assigned')
 })
 
 const recordedCsv = (fps = 100, count = 3001) => 'Application,ProcessID,SwapChainAddress,TimeInSeconds,MsBetweenPresents\n' +

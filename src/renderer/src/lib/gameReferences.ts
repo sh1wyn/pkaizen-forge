@@ -22,7 +22,26 @@ const COMPARISON_SOURCE = {
   drivers: 'NVIDIA 596.49 WHQL / AMD 26.5.2 WHQL'
 } as const
 
-export const REFERENCE_SOURCES = [REFERENCE_SOURCE, COMPARISON_SOURCE] as const
+const CYBERPUNK_SOURCE = {
+  publisher: 'TechSpot / Hardware Unboxed',
+  title: 'Cyberpunk 2077 2.0: Phantom Liberty GPU Benchmark',
+  url: 'https://www.techspot.com/review/2743-cyberpunk-phantom-liberty-benchmark/',
+  published: '2023-09', verified: '2026-10-11',
+  cpu: 'AMD Ryzen 7 7800X3D', memory: '32 GB DDR5-6000 CL30',
+  os: null, drivers: 'NVIDIA 537.42 / AMD 23.9.2'
+} as const
+
+const ARC_SOURCE = {
+  publisher: 'TechSpot / Hardware Unboxed',
+  title: 'Intel Arc B580 Review',
+  url: 'https://www.techspot.com/review/2935-intel-arc-b580/',
+  followUpUrl: 'https://www.techspot.com/review/2940-intel-arc-b580-rereview/',
+  published: '2024-12', verified: '2026-10-11',
+  cpu: 'AMD Ryzen 7 9800X3D', memory: 'DDR5-6000 CL30',
+  os: 'Windows 11 24H2', drivers: 'NVIDIA 566.36 / AMD 24.12.1 / Intel 32.0.101.6319'
+} as const
+
+export const REFERENCE_SOURCES = [REFERENCE_SOURCE, COMPARISON_SOURCE, CYBERPUNK_SOURCE, ARC_SOURCE] as const
 
 const ORIGINAL_GAMES = [
   { id: 'cs2', name: 'Counter-Strike 2', preset: 'Medium', chart: 'CS2', cpuSensitive: true },
@@ -118,8 +137,74 @@ const COMPARISON_GAMES: readonly ComparisonGame[] = [
   ] }
 ]
 
-export const REFERENCE_GAMES = [...ORIGINAL_GAMES, ...COMPARISON_GAMES].map(({ id, name }) => ({ id, name }))
-export const SUPPORTED_GPUS = [...Object.keys(OBSERVATIONS), 'RX 9070 XT']
+// 1080p, 1440p, 4K average/1% low. Medium preset, native rendering, FSR disabled.
+const CYBERPUNK_OBSERVATIONS: Record<string, readonly [number, number, number, number, number, number]> = {
+  'RTX 4090': [208, 164, 192, 157, 106, 94],
+  'RX 7900 XTX': [218, 177, 158, 133, 87, 77],
+  'RTX 4080': [205, 162, 146, 119, 78, 72],
+  'RX 7900 XT': [191, 165, 133, 118, 70, 61],
+  'RTX 4070 Ti': [184, 154, 124, 113, 65, 56],
+  'RTX 3090 Ti': [167, 142, 124, 109, 67, 58],
+  'RX 6950 XT': [166, 146, 118, 106, 61, 54],
+  'RX 7800 XT': [162, 139, 115, 102, 59, 51],
+  'RX 6900 XT': [161, 138, 114, 102, 57, 50],
+  'RTX 3090': [162, 136, 113, 95, 61, 53],
+  'RX 6800 XT': [150, 133, 106, 95, 55, 48],
+  'RTX 3080 Ti': [145, 126, 105, 87, 56, 49],
+  'RTX 3080 10GB': [135, 113, 98, 83, 53, 46],
+  'RTX 4070': [143, 124, 96, 83, 49, 41],
+  'RX 7700 XT': [133, 112, 92, 80, 48, 40],
+  'RX 6800': [132, 112, 92, 79, 46, 39],
+  'RTX 3070 Ti': [123, 109, 81, 75, 41, 33],
+  'RTX 3070': [118, 105, 78, 72, 39, 32],
+  'RTX 4060 Ti 8GB': [111, 97, 75, 67, 36, 31],
+  'RTX 4060 Ti 16GB': [111, 97, 75, 67, 36, 31],
+  'RX 6750 XT': [110, 96, 74, 66, 37, 32],
+  'RTX 2080 Ti': [100, 87, 70, 62, 38, 31],
+  'RX 6700 XT': [103, 90, 69, 61, 34, 30],
+  'RTX 3060 Ti': [96, 84, 64, 55, 33, 29],
+  'RX 7600': [95, 83, 62, 53, 30, 26],
+  'RTX 4060': [97, 85, 61, 52, 28, 22],
+  'GTX 1080 Ti': [81, 71, 56, 49, 30, 26],
+  'RX 6650 XT': [87, 77, 55, 48, 26, 20],
+  'RX 6600 XT': [85, 75, 53, 46, 25, 19],
+  'RTX 3060 12GB': [77, 67, 50, 42, 25, 21],
+  'RX 6600': [75, 65, 47, 39, 22, 17],
+  'RX 5700 XT': [68, 60, 46, 39, 23, 19],
+  'RTX 3050 8GB': [56, 49, 36, 31, 18, 14],
+  'RX 6500 XT 4GB': [36, 32, 18, 8, 2, 1]
+}
+
+const BUDGET_GAMES = [
+  { id: 'cyberpunk', name: 'Cyberpunk 2077: Phantom Liberty', preset: 'High', chart: 'CP2077' },
+  { id: 'warthunder', name: 'War Thunder', preset: 'Movie', chart: 'WT' },
+  { id: 'hogwarts', name: 'Hogwarts Legacy', preset: 'High', chart: 'HL' },
+  { id: 'spider-remastered', name: "Marvel's Spider-Man Remastered", preset: 'Very High', chart: 'Spider' }
+] as const
+
+// Same order as BUDGET_GAMES; each tuple is 1080p average/1% low, 1440p average/1% low.
+// The review's unspecified RTX 3060 variant is deliberately not assigned to the 12GB model.
+const BUDGET_OBSERVATIONS: Record<string, readonly Observation[]> = {
+  'RTX 4070': [[129, 93, 81, 67], [365, 298, 273, 226], [106, 72, 83, 53], [191, 137, 141, 97]],
+  'RX 7700 XT': [[111, 92, 78, 66], [255, 220, 250, 195], [105, 77, 83, 60], [137, 98, 106, 79]],
+  'RTX 4060 Ti 8GB': [[100, 81, 64, 55], [285, 224, 203, 177], [82, 52, 63, 43], [153, 111, 109, 86]],
+  'RTX 4060 Ti 16GB': [[100, 81, 64, 55], [286, 224, 205, 179], [83, 60, 66, 44], [153, 111, 109, 86]],
+  'RTX 3070': [[98, 77, 67, 57], [282, 239, 213, 177], [122, 75, 76, 47], [144, 99, 108, 85]],
+  'Arc B580': [[90, 70, 63, 51], [255, 220, 191, 167], [71, 47, 59, 42], [152, 105, 110, 83]],
+  'RX 6700 XT': [[89, 75, 59, 50], [243, 207, 204, 170], [82, 57, 64, 43], [110, 80, 85, 67]],
+  'RTX 3060 Ti': [[88, 73, 58, 49], [257, 215, 195, 161], [87, 61, 69, 45], [138, 96, 98, 76]],
+  'RX 7600 XT': [[81, 68, 53, 47], [247, 212, 178, 154], [76, 50, 59, 42], [102, 73, 75, 63]],
+  'RX 7600': [[81, 68, 53, 47], [244, 210, 172, 151], [76, 50, 59, 42], [102, 73, 75, 63]],
+  'RTX 4060': [[78, 64, 49, 41], [238, 204, 165, 135], [70, 45, 53, 36], [90, 68, 77, 58]],
+  'Arc A770 16GB': [[73, 63, 54, 46], [210, 171, 160, 134], [61, 40, 50, 34], [109, 79, 86, 69]],
+  'RX 6650 XT': [[72, 63, 43, 38], [244, 189, 169, 143], [68, 42, 52, 36], [95, 68, 57, 34]],
+  'RX 6600': [[60, 52, 36, 26], [202, 168, 131, 102], [55, 39, 43, 34], [82, 64, 49, 26]]
+}
+
+export const REFERENCE_GAMES = [...new Map([...ORIGINAL_GAMES, ...COMPARISON_GAMES, ...BUDGET_GAMES]
+  .map(({ id, name }) => [id, { id, name }])).values()]
+export const SUPPORTED_GPUS = [...new Set([...Object.keys(OBSERVATIONS), 'RX 9070 XT',
+  ...Object.keys(CYBERPUNK_OBSERVATIONS), ...Object.keys(BUDGET_OBSERVATIONS)])]
 
 export interface GameReference {
   id: string
@@ -137,19 +222,30 @@ export interface GameReference {
   capFps?: number
 }
 
-export function referenceGpu(model: string, isLaptop: boolean | null): string | null {
+export function referenceGpu(model: string, isLaptop: boolean | null, vramMB?: number): string | null {
   if (isLaptop !== false || /laptop|mobile|max-q|notebook/i.test(model)) return null
-  const normalized = model.replace(/™|®/g, '').replace(/^(?:NVIDIA\s+)?GeForce\s+|^NVIDIA\s+|^(?:AMD\s+)?Radeon\s+|^AMD\s+/i, '')
+  const normalized = model.replace(/™|®|\((?:r|tm)\)/gi, '')
+    .replace(/^(?:NVIDIA\s+)?GeForce\s+|^NVIDIA\s+|^(?:AMD\s+)?Radeon\s+|^AMD\s+|^Intel\s+/i, '')
+    .replace(/\s+Graphics$/i, '').replace(/\s*[\[(]?\s*(\d+)\s*G(?:B)?[\])]?\s*$/i, ' $1GB')
     .trim().replace(/\s+/g, ' ').toLowerCase()
-  return SUPPORTED_GPUS.find((gpu) => gpu.toLowerCase() === normalized) ?? null
+  const memoryKnown = typeof vramMB === 'number' && Number.isFinite(vramMB) && vramMB > 0
+  const candidates = SUPPORTED_GPUS.filter((gpu) => {
+    const name = gpu.toLowerCase()
+    const memory = name.match(/ (\d+)gb$/)
+    if (!memory) return name === normalized
+    // Allow a small driver-reserved VRAM deduction, never choose a different memory SKU.
+    const matchesMemory = memoryKnown && Math.abs(vramMB - Number(memory[1]) * 1024) <= 256
+    return name === normalized ? !memoryKnown || matchesMemory : name.replace(/ \d+gb$/, '') === normalized && matchesMemory
+  })
+  return candidates.length === 1 ? candidates[0] : null
 }
 
-export function referencesFor(model: string, isLaptop: boolean | null, width: number, height: number): GameReference[] {
-  const gpu = referenceGpu(model, isLaptop)
-  if (!gpu || !((width === 2560 && height === 1440) || (width === 3840 && height === 2160))) return []
+export function referencesFor(model: string, isLaptop: boolean | null, width: number, height: number, vramMB?: number): GameReference[] {
+  const gpu = referenceGpu(model, isLaptop, vramMB)
+  if (!gpu || !((width === 1920 && height === 1080) || (width === 2560 && height === 1440) || (width === 3840 && height === 2160))) return []
   const offset = width === 2560 ? 0 : 2
   const original = OBSERVATIONS[gpu]
-  const rows: GameReference[] = original ? ORIGINAL_GAMES.map((game, index) => ({
+  const rows: GameReference[] = original && width !== 1920 ? ORIGINAL_GAMES.map((game, index) => ({
     ...game, gpu, width, height,
     average: original[index][offset],
     low1: original[index][offset + 1],
@@ -157,7 +253,7 @@ export function referencesFor(model: string, isLaptop: boolean | null, width: nu
     scene: 'unspecified',
     chartUrl: `https://www.techspot.com/articles-info/2955/bench/${game.chart}${offset ? '-4K' : ''}.png`
   })) : []
-  if (gpu === 'RTX 5070 Ti' || gpu === 'RX 9070 XT') {
+  if (width !== 1920 && (gpu === 'RTX 5070 Ti' || gpu === 'RX 9070 XT')) {
     for (const game of COMPARISON_GAMES) {
       for (const preset of game.presets) {
         const values = gpu === 'RTX 5070 Ti' ? preset.nvidia : preset.amd
@@ -171,11 +267,36 @@ export function referencesFor(model: string, isLaptop: boolean | null, width: nu
       }
     }
   }
-  return rows
+  const cyberpunk = CYBERPUNK_OBSERVATIONS[gpu]
+  if (cyberpunk) {
+    const index = width === 1920 ? 0 : width === 2560 ? 2 : 4
+    rows.push({
+      id: 'cyberpunk', name: 'Cyberpunk 2077: Phantom Liberty', preset: 'Medium, native (FSR off)',
+      gpu, width, height, average: cyberpunk[index], low1: cyberpunk[index + 1],
+      source: CYBERPUNK_SOURCE, scene: 'in-game', cpuSensitive: true,
+      chartUrl: `https://www.techspot.com/articles-info/2743/bench/Medium_${height}p.png`
+    })
+  }
+  const budget = BUDGET_OBSERVATIONS[gpu]
+  if (budget && width !== 3840) {
+    const offset = width === 1920 ? 0 : 2
+    BUDGET_GAMES.forEach((game, index) => rows.push({
+      ...game, gpu, width, height, average: budget[index][offset], low1: budget[index][offset + 1],
+      source: ARC_SOURCE, scene: game.id === 'cyberpunk' ? 'in-game' : 'unspecified', cpuSensitive: false,
+      chartUrl: `https://www.techspot.com/articles-info/2935/bench/${game.chart}_${height}p.png`
+    }))
+  }
+  const latest = new Map<string, GameReference>()
+  for (const row of rows) {
+    const key = `${row.id}:${row.preset}`
+    const previous = latest.get(key)
+    if (!previous || previous.source.published < row.source.published) latest.set(key, row)
+  }
+  return [...latest.values()]
 }
 
 export function roundedFps(value: number): number {
-  return Math.round(value / 5) * 5
+  return value < 5 ? Math.round(value * 10) / 10 : Math.round(value / 5) * 5
 }
 
 export function referenceScreenVerdict(average: number, low1: number, hz: number, capFps?: number): 'unknown' | 'below' | 'variable' | 'headroom' | 'capped' {
