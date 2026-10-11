@@ -3,12 +3,14 @@ import { join } from 'path'
 import { readFileSync, existsSync, appendFileSync } from 'fs'
 import { ps } from './system/powershell'
 import { setLang, T, type Lang } from './system/i18n'
-import { getSystemReport, getLiveStats } from './system/sysinfo'
+import { getSystemReport, getLiveStats, getGamingHardware } from './system/sysinfo'
+import { getDisplays } from './system/displays'
 import { getInsights } from './system/analyzer'
 import { getDetailedInfo } from './system/details'
 import { listTweaks, getTweakStates, applyTweak, revertTweak, getTweakRelevance } from './system/optimizer'
 import { diskBench } from './system/bench'
 import { getInstalledGames } from './system/games'
+import { recordingToolStatus, installRecordingTool, removeRecordingTool, captureProcesses, startRecording, cancelRecording, isRecording } from './system/recording'
 import { previewClean, runClean } from './system/cleaner'
 import {
   scanDrivers,
@@ -100,6 +102,7 @@ function createWindow(): void {
   })
   mainWin = win
   win.on('closed', () => {
+    void cancelRecording().catch((error) => logError('cancel recording', error))
     speedController?.abort()
     diskController?.abort()
     if (mainWin === win) mainWin = null
@@ -109,6 +112,7 @@ function createWindow(): void {
   win.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   win.webContents.session.setPermissionCheckHandler(() => false)
   win.webContents.on('render-process-gone', (_e, details) => {
+    void cancelRecording().catch((error) => logError('cancel recording', error))
     speedController?.abort()
     diskController?.abort()
     logError('renderer gone', details.reason)
@@ -141,7 +145,18 @@ function registerIpc(): void {
     }
   })
   handle('system:report', () => getSystemReport())
+  handle('system:gamingHardware', () => getGamingHardware())
+  handle('system:displays', () => getDisplays())
   handle('games:installed', () => getInstalledGames())
+  handle('games:toolStatus', () => recordingToolStatus())
+  handle('games:installTool', () => installRecordingTool())
+  handle('games:removeTool', () => removeRecordingTool())
+  handle('games:processes', () => captureProcesses())
+  handle('games:record', (event, pid: number, started: string, seconds: number) =>
+    startRecording(pid, started, seconds, (value) => {
+      if (!event.sender.isDestroyed()) event.sender.send('games:recordProgress', value)
+    }))
+  handle('games:cancelRecord', () => cancelRecording())
   handle('system:live', () => getLiveStats())
   handle('system:insights', () => getInsights())
   handle('system:details', () => getDetailedInfo())
@@ -329,4 +344,10 @@ if (!gotLock) {
 app.on('window-all-closed', () => {
   destroyPresence()
   app.quit()
+})
+
+app.on('before-quit', (event) => {
+  if (!isRecording()) return
+  event.preventDefault()
+  void cancelRecording().catch((error) => logError('stop capture before quit', error)).finally(() => app.quit())
 })

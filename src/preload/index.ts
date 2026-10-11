@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { RecordingProgress } from '../shared/recording'
 
 const api = {
   setLang: (lang: 'en' | 'fr' | 'es' | 'ru' | 'de' | 'pt' | 'it') => ipcRenderer.invoke('app:setLang', lang),
@@ -6,6 +7,8 @@ const api = {
   checkUpdates: () => ipcRenderer.invoke('app:checkUpdates'),
   relaunchAdmin: () => ipcRenderer.invoke('app:relaunchAdmin'),
   getSystemReport: () => ipcRenderer.invoke('system:report'),
+  getGamingHardware: () => ipcRenderer.invoke('system:gamingHardware'),
+  getDisplays: () => ipcRenderer.invoke('system:displays'),
   getLiveStats: () => ipcRenderer.invoke('system:live'),
   getInsights: () => ipcRenderer.invoke('system:insights'),
   getDetailedInfo: () => ipcRenderer.invoke('system:details'),
@@ -21,6 +24,17 @@ const api = {
   diskBench: () => ipcRenderer.invoke('bench:disk'),
   cancelDiskBench: () => ipcRenderer.invoke('bench:cancel'),
   getInstalledGames: () => ipcRenderer.invoke('games:installed'),
+  recordingToolStatus: () => ipcRenderer.invoke('games:toolStatus'),
+  installRecordingTool: () => ipcRenderer.invoke('games:installTool'),
+  removeRecordingTool: () => ipcRenderer.invoke('games:removeTool'),
+  captureProcesses: () => ipcRenderer.invoke('games:processes'),
+  startRecording: (pid: number, started: string, seconds: number) => ipcRenderer.invoke('games:record', pid, started, seconds),
+  cancelRecording: () => ipcRenderer.invoke('games:cancelRecord'),
+  onRecordingProgress: (cb: (value: RecordingProgress) => void) => {
+    const listener = (_event: unknown, value: RecordingProgress): void => cb(value)
+    ipcRenderer.on('games:recordProgress', listener)
+    return () => ipcRenderer.removeListener('games:recordProgress', listener)
+  },
 
   previewClean: () => ipcRenderer.invoke('clean:preview'),
   runClean: (ids: string[]) => ipcRenderer.invoke('clean:run', ids),

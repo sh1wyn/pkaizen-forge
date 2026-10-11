@@ -3,6 +3,7 @@ import { ps } from './powershell'
 import { T } from './i18n'
 import { scanDrivers, getGpuDriverStatus, getProblemDevices } from './drivers'
 import type { Insight } from '../../shared/types'
+import { getDisplays } from './displays'
 
 /** Analyse orientée gamer : bottlenecks et points à corriger, du plus grave au moins grave. */
 export async function getInsights(): Promise<Insight[]> {
@@ -159,11 +160,12 @@ export async function getInsights(): Promise<Insight[]> {
   }
 
   // --- Écran ---
-  const display = graphics.displays.find((d) => d.main) || graphics.displays[0]
-  if (display?.currentRefreshRate && display.currentRefreshRate <= 60) {
+  const displays = getDisplays()
+  const display = displays.find((d) => d.main) || displays[0]
+  if (display?.hz && display.hz <= 60) {
     add({
       severity: 'info',
-      title: T(`Display at ${display.currentRefreshRate} Hz`, `Écran en ${display.currentRefreshRate} Hz`),
+      title: T(`Display at ${display.hz} Hz`, `Écran en ${display.hz} Hz`),
       detail: T(
         'If your monitor supports more (120/144/165 Hz), Windows may be stuck at 60 Hz — an ultra common mistake that ruins smoothness. Check Settings > Display > Refresh rate.',
         'Si ton écran supporte plus (120/144/165 Hz), Windows est peut-être resté en 60 Hz — erreur ultra courante qui gâche la fluidité. Vérifie dans Paramètres > Affichage > Fréquence.'

@@ -13,12 +13,14 @@ const ERRORS: Record<CaptureError['code'], StrKey> = {
   mixed: 'gaming.errorMixed', value: 'gaming.errorValue', short: 'gaming.errorShort'
 }
 
-export default function GamingBenchmark({ disabled }: { disabled: boolean }): React.JSX.Element {
+export default function GamingBenchmark({ disabled, initialDisplay }: {
+  disabled: boolean; initialDisplay?: DetailedInfo['displays'][number]
+}): React.JSX.Element {
   const { t, lang } = useI18n()
   const toast = useToast()
   const [gameId, setGameId] = useState<string>('fortnite')
   const [customName, setCustomName] = useState('')
-  const [resolution, setResolution] = useState('1920 × 1080')
+  const [resolution, setResolution] = useState(initialDisplay ? `${initialDisplay.resX} × ${initialDisplay.resY}` : '')
   const [settings, setSettings] = useState('')
   const [scene, setScene] = useState('')
   const [frameGeneration, setFrameGeneration] = useState<SessionContext['frameGeneration']>('unknown')
@@ -109,9 +111,11 @@ export default function GamingBenchmark({ disabled }: { disabled: boolean }): Re
   const scanDisplays = async (): Promise<void> => {
     setDisplayBusy(true)
     try {
-      const details = await window.api.getDetailedInfo()
-      setDisplays(details.displays)
-      setDisplayIndex(Math.max(0, details.displays.findIndex((entry) => entry.main)))
+      const found = await window.api.getDisplays()
+      const index = Math.max(0, found.findIndex((entry) => initialDisplay?.id ? entry.id === initialDisplay.id : entry.main))
+      setDisplays(found)
+      setDisplayIndex(index)
+      if (!capture && !resolution && found[index]) setResolution(`${found[index].resX} × ${found[index].resY}`)
     } catch (error) {
       setDisplays(null)
       setError(String(error))

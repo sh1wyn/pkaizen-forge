@@ -11,6 +11,15 @@ export interface GpuInfo {
   vramMB: number
 }
 
+export interface GamingHardware {
+  cpu: string
+  gpus: GpuInfo[]
+  ramGB: number
+  isLaptop: boolean | null
+  displays: DetailedInfo['displays']
+  warnings: string[]
+}
+
 export interface DiskInfo {
   name: string
   type: string
@@ -270,8 +279,10 @@ export interface DetailedInfo {
     tempC: number | null
     powerOnHours: number | null
     wearPercent: number | null
+    error: string
   }[]
-  displays: { model: string; main: boolean; resX: number; resY: number; hz: number; connection: string }[]
+  diskWarnings: string[]
+  displays: { id?: string; model: string; main: boolean; resX: number; resY: number; hz: number; connection: string }[]
 }
 
 export interface ActionResult {

@@ -93,6 +93,9 @@ export default function Browser(): React.JSX.Element {
   }
 
   const defaultName = report?.defaultBrowser ? NAME_MAP[report.defaultBrowser] || report.defaultBrowser : null
+  const isDefaultBrowser = (id: string): boolean => report?.defaults
+    ? report.defaults.http === id && report.defaults.https === id
+    : report?.defaultBrowser === id
   const heavy = report?.running.find((r) => r.ramMB > 1500)
   const recommendations: Rec[] = [...RECS, ...(report?.installed ?? [])
     .filter((id) => !RECS.some((rec) => rec.id === id))
@@ -127,6 +130,10 @@ export default function Browser(): React.JSX.Element {
                 <div className="sub" style={r.ramMB > 1500 ? { color: 'var(--orange)' } : undefined}>
                   {t('browser.ramUse', r.ramMB)}
                 </div>
+                {isDefaultBrowser(r.id) ? <span className="badge okay">{t('browser.isDefault')}</span> :
+                  report.installed.includes(r.id) && <button className="btn" disabled={busy !== null || detectBusy} onClick={() => void setDefault(r.id)}>
+                    {t('browser.setDefault')}
+                  </button>}
               </div>
             ))
           ) : (
@@ -145,9 +152,7 @@ export default function Browser(): React.JSX.Element {
       <div className="section-title">{t('browser.recs')}</div>
       {recommendations.map((rec) => {
         const isInstalled = report?.installed.includes(rec.id)
-        const isDefault = report?.defaults
-          ? report.defaults.http === rec.id && report.defaults.https === rec.id
-          : report?.defaultBrowser === rec.id
+        const isDefault = isDefaultBrowser(rec.id)
         return (
           <div className="row stagger" key={rec.id}>
             <div className="row-info">

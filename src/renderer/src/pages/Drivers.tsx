@@ -90,6 +90,7 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
     <>
       <h1>{t('drv.title')}</h1>
       <p className="subtitle">{t('drv.subtitle')}</p>
+      <p className="banner info">{t('drivers.steps')}</p>
       <div className="toolbar">
         <button className="btn primary" disabled={busy} onClick={scan}>
           {job.busy === 'scan' && <span className="spinner" />} {t('drv.scanAll')}
@@ -124,6 +125,7 @@ export default function Drivers({ isAdmin }: { isAdmin: boolean }): React.JSX.El
 
       <section aria-label={t('drv.wuSection')}>
         <div className="section-title">{t('drv.wuSection')}</div>
+        <p className="sub">{t('drivers.windows')}</p>
         {!isAdmin && (
           <div className="banner warn">
             {t('drv.wuAdmin')}

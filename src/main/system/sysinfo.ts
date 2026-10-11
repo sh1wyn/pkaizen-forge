@@ -1,8 +1,33 @@
 import si from './hardware'
 import { cpus, freemem, totalmem } from 'os'
-import type { SystemReport, LiveStats } from '../../shared/types'
+import type { SystemReport, LiveStats, GamingHardware } from '../../shared/types'
+import { getDisplays } from './displays'
 
 const toGB = (b: number): number => Math.round((b / 1024 ** 3) * 10) / 10
+
+export async function getGamingHardware(): Promise<GamingHardware> {
+  const [cpu, graphics, chassis] = await Promise.allSettled([si.cpu(), si.graphics(), si.chassis()])
+  const warnings: string[] = []
+  for (const [label, result] of [['CPU', cpu], ['GPU', graphics], ['Chassis', chassis]] as const) {
+    if (result.status === 'rejected') {
+      console.error(`[Pkaizen] Gaming hardware ${label}:`, result.reason)
+      warnings.push(`${label}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`)
+    }
+  }
+  const type = chassis.status === 'fulfilled' ? (chassis.value.type || '').toLowerCase() : ''
+  const laptop = ['notebook', 'laptop', 'portable', 'sub notebook', 'convertible', 'detachable', 'tablet']
+  const desktop = ['desktop', 'tower', 'mini tower', 'low profile desktop', 'all in one', 'space-saving', 'mini pc']
+  return {
+    cpu: cpu.status === 'fulfilled' ? `${cpu.value.manufacturer} ${cpu.value.brand}`.trim() : '',
+    gpus: graphics.status === 'fulfilled' ? graphics.value.controllers.filter((g) => g.model).map((g) => ({
+      model: g.model, vendor: g.vendor || '', vramMB: g.vram || 0
+    })) : [],
+    ramGB: toGB(totalmem()),
+    isLaptop: laptop.includes(type) ? true : desktop.includes(type) ? false : null,
+    displays: getDisplays(),
+    warnings
+  }
+}
 
 let reportCache: { value: SystemReport; expires: number } | null = null
 let reportPending: Promise<SystemReport> | null = null

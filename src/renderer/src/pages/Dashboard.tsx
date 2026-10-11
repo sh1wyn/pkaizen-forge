@@ -36,7 +36,7 @@ export default function Dashboard(): React.JSX.Element {
   const runAnalysis = async (): Promise<void> => {
     setInsightsBusy(true)
     try {
-      setInsights(await cached('insights', () => window.api.getInsights()))
+      setInsights(await window.api.getInsights())
     } catch {
       setInsights([])
     }
@@ -46,12 +46,26 @@ export default function Dashboard(): React.JSX.Element {
   const loadDetails = async (): Promise<void> => {
     setDetailsBusy(true)
     try {
-      setDetails(await cached('details', () => window.api.getDetailedInfo()))
-    } catch {
+      const [info, displays] = await Promise.all([
+        cached('details', () => window.api.getDetailedInfo()), window.api.getDisplays()
+      ])
+      setDetails({ ...info, displays })
+    } catch (error) {
+      console.error('[Pkaizen] Advanced diagnostics:', error)
+      toast(String(error), 'error')
       setDetails(null)
     }
     setDetailsBusy(false)
   }
+
+  useEffect(() => {
+    const refreshDisplays = (): void => {
+      void window.api.getDisplays().then((displays) => setDetails((value) => value ? { ...value, displays } : value))
+        .catch((error) => { console.error('[Pkaizen] Displays:', error); toast(String(error), 'error') })
+    }
+    window.addEventListener('focus', refreshDisplays)
+    return () => window.removeEventListener('focus', refreshDisplays)
+  }, [])
 
   useEffect(() => {
     let stop = false
@@ -273,16 +287,19 @@ export default function Dashboard(): React.JSX.Element {
             ))}
             {details.diskHealth.map((d, i) => (
               <div className="card stagger" key={i}>
-                <h3>{t('dash.diskHealth')}</h3>
+                <h3>{t('disk.title')}</h3>
                 <div className="big">{d.model}</div>
                 <div className="sub">
-                  {t('dash.state')} : {d.health}
+                  {t('disk.status', d.health || t('ready.unknown'))}
                   {d.tempC != null && ` · ${d.tempC}°C`}
                   {d.powerOnHours != null && ` · ${d.powerOnHours} ${t('dash.hoursUse')}`}
-                  {d.wearPercent != null && ` · ${t('dash.wear')} ${d.wearPercent}%`}
+                  {d.wearPercent != null && ` · ${t('disk.wear', d.wearPercent)}`}
                 </div>
+                <p className="sub">{t('disk.limits')}</p>
+                {d.error && <p role="alert">{t('disk.unavailable', d.error)}</p>}
               </div>
             ))}
+            {details.diskWarnings.map((warning, index) => <p key={index} role="alert" className="banner warn">{t('disk.unavailable', warning)}</p>)}
             {details.displays.map((d, i) => (
               <div className="card stagger" key={i}>
                 <h3>{t('dash.screen')} {details.displays.length > 1 ? i + 1 : ''} {d.main ? t('dash.main') : ''}</h3>

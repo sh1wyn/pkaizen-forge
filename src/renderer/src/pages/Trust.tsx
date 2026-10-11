@@ -22,7 +22,7 @@ export default function Trust(): React.JSX.Element {
       <p>{t('trust.command')}</p>
       <pre className="verification-command">Get-FileHash .\Pkaizen-Forge-Setup.exe -Algorithm SHA256</pre>
     </div>
-    <div className="card gaming-block"><h2>{t('trust.privacy')}</h2><p>{t('trust.data')}</p></div>
+    <div className="card gaming-block"><h2>{t('trust.privacy')}</h2><p>{t('trust.data')}</p><p>{t('record.download')}</p><p>{t('record.privacy')}</p><p>{t('record.safety')}</p></div>
     <div className="card gaming-block"><h2>{t('trust.limits')}</h2><p>{t('trust.compat')}</p></div>
     <p className="banner warn">{t('trust.unsigned')}</p>
     <button className="btn" onClick={() => open('/issues')}>{t('trust.report')}</button>

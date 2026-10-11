@@ -19,7 +19,7 @@ Boost FPS · Réduction de latence · Diagnostic complet · Pilotes officiels ·
 
 1. Télécharge **`Pkaizen-Forge-Setup.exe`** depuis la [dernière release](../../releases/latest)
 2. Double-clique → suis l'assistant → c'est installé (raccourci bureau + menu Démarrer)
-3. Utilise le mode utilisateur pour les diagnostics, jeux installés et analyses CSV. Les droits administrateur ne sont nécessaires que pour certaines modifications système et installations de pilotes.
+3. Utilise le mode utilisateur pour les diagnostics de base et les analyses CSV. La capture ETW exige des droits administrateur ou l'appartenance au groupe Performance Log Users ; les compteurs de fiabilité des disques peuvent aussi nécessiter une élévation. Aucun changement de groupe ni élévation automatique n'est effectué.
 
 ### ⚠ Avertissements Windows (app non signée)
 
@@ -37,7 +37,7 @@ En cas de blocage, attends une version signée ou examine puis compile les sourc
 |---|---|
 | 📊 **Diagnostic** | Matériel complet (CPU/GPU/RAM par slot/disques/écrans/BIOS/TPM), charge en direct, **détection de bottlenecks gamer** : RAM single-channel, XMP désactivé, HDD, écran resté en 60 Hz, Wi-Fi, pilote GPU obsolète, batterie usée, uptime trop long… |
 | ⚡ **Optimiser** | Sélection prévisualisée, profils « Gaming prudent » et « Confort du bureau », arrêt après l'action en cours, états indisponibles bloqués et exclusions explicites portable/admin. Réglage des transparences avec sauvegarde/restauration de la valeur précédente. Les indications d'impact des réglages historiques sont des conseils, pas des gains mesurés |
-| 🧪 **Benchmark gaming** | Détection des jeux Steam/Epic, guides pour 8 jeux populaires et saisie libre ; import de temps de trame réels, FPS moyens, 1% low, pics, budget 60/144/240 FPS, historique local et comparaison. Aucun FPS prédit depuis un score synthétique |
+| 🧪 **Benchmark gaming** | Capture du jeu ouvert pendant 30/60 secondes via PresentMon, sans CSV à manipuler ; moyenne, 1% low, pics et comparaison avec ses propres essais. Repères publiés séparés et import CSV avancé conservé. Aucun FPS prédit depuis un score synthétique |
 | 🖥 **Conseil écran** | Résolution/Hz détectés, choix multi-écran, analyse prudente des captures à la même résolution sans génération d'images, distinction entre un jeu et plusieurs jeux. Pas d'extrapolation vers la 1440p/4K |
 | 🎮 **Préparer le gaming** | Contrôles en lecture seule : CPU/RAM, espace disque, batterie, écrans, connexion et redémarrage ; raccourcis vers les paramètres Windows |
 | 🛡 **Confiance** | Code source, licence, limites de compatibilité, connexions externes et procédure SHA-256 |
@@ -45,16 +45,32 @@ En cas de blocage, attends une version signée ou examine puis compile les sourc
 | 🔧 **Pilotes** | Check par composant via les **canaux officiels** : API NVIDIA (version exacte dispo), carte mère/chipset/réseau/audio/SSD avec liens constructeurs directs, détection des périphériques **sans pilote**, installation auto via Windows Update, téléchargement direct NVIDIA avec progression |
 | 🚀 **Démarrage** | Désactive les applis au boot (sauvegardées, réactivables en 1 clic) |
 | 🌐 **Réseau** | **Speedtest** (serveurs officiels Cloudflare), ping/jitter/pertes, bench DNS comparatif et **changement de DNS en 1 bouton** |
-| 🧭 **Navigateur** | Détecte ton navigateur + sa conso RAM en direct, recommande les meilleurs (perf/vie privée) installables en 1 clic |
+| 🧭 **Navigateur** | Détecte navigateurs ouverts, RAM et associations HTTP/HTTPS ; bouton de choix par défaut directement sur le navigateur ouvert, avec confirmation dans les paramètres Windows |
 | 📋 **Rapport** | Diagnostic HTML complet exportable — envoie-le à un pote pour diagnostiquer son PC à distance |
 
 🌍 Interface historique multilingue. Les nouveaux guides gaming, préparation et confiance sont disponibles en **français/anglais** ; un message signale le repli en anglais pour les autres langues.
 
 ## 🎮 Mesures gaming : mode d'emploi et limites
 
+### Parcours principal : mesurer son jeu
+
+1. Lance le jeu et entre dans une scène jouable. Dans **Mes FPS mesurés**, sélectionne sa fenêtre, pas le lanceur.
+2. Au premier usage, autorise le téléchargement de l'exécutable console **Intel PresentMon 2.6.0 x64**, depuis sa [release officielle](https://github.com/GameTechDev/PresentMon/releases/tag/v2.6.0). Forge n'installe ni service ni pilote de capture. Le fichier de 980 320 octets est vérifié avant sauvegarde et à chaque exécution : SHA-256 `b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af`. Sa signature Authenticode était valide lors de la vérification ; le contrôle automatique de Forge repose sur cette empreinte épinglée, pas sur une promesse antivirus.
+3. Clique **Mesurer pendant 30/60 secondes** puis retourne au jeu dans les 5 secondes. Les FPS proviennent des événements de présentation du processus sélectionné. La fenêtre Forge ne reprend pas le premier plan.
+4. Le résultat distingue objectif atteint, moyenne insuffisante et irrégularité. Ce n'est pas un diagnostic de panne ni une détection certaine de limitation CPU/GPU.
+5. Pour comparer, renseigne résolution réelle du jeu, qualité, limite FPS/V-Sync, mise à l'échelle, génération d'images, version et parcours. La référence est la médiane d'au moins trois essais antérieurs avec même matériel enregistré, même processus et conditions saisies identiques. Au-delà de ±15% de moyenne, Forge signale un écart à confirmer. Une mesure conforme à ses propres essais ne prouve pas que la configuration donne ses performances maximales.
+
+La capture est bornée, filtrée par PID et protégée contre les doubles lancements. Le processus choisi est revérifié avant capture. Chaque session ETW porte un nom unique ; l'annulation ne ferme ni le jeu ni un autre outil de mesure. Quitter la page ou fermer Forge annule la capture. Aucun résultat partiel n'est validé après annulation.
+
+Le flux reste en mémoire (maximum 16 Mio / 250 000 lignes), sans CSV écrit. Le premier intervalle est exclu car il peut commencer avant l'enregistrement ; minimum 120 intervalles et 25 secondes analysables. Les PID inattendus, flux de rendu mélangés et discontinuités de temps sont refusés plutôt que moyennés artificiellement. Les avertissements d'événements perdus empêchent de valider la mesure. Les dix derniers résumés et conditions persistent localement et sont effaçables.
+
+La métrique est la cadence des appels de présentation (`msBetweenPresents`), **pas une garantie de FPS effectivement affichés**, ni une mesure de latence d'entrée. Désactive la génération d'images pour un test des FPS de base. Les réglages et la résolution du jeu ne sont pas devinés depuis l'écran Windows. La compatibilité x64/ETW a été vérifiée avec une scène WebGL locale ; chaque jeu, session distante, VM et anticheat reste à tester individuellement.
+
+### Import manuel avancé
+
 1. Dans Benchmark, clique **Trouver mes jeux installés**. La détection lit les manifestes Steam/Epic et vérifie le dossier d'installation, sans lancer de jeu ni en vérifier l'intégrité. Les bibliothèques Steam secondaires sont incluses ; autres lanceurs et jeux portables restent saisissables manuellement.
 2. Choisis un guide puis renseigne **les vrais réglages utilisés**, la résolution, la scène, la version du jeu et le PC/mode d'alimentation. Les guides sont des points de départ, pas des promesses de FPS.
-3. Capture **30 à 60 secondes** avec [PresentMon](https://github.com/GameTechDev/PresentMon) ou un export brut de [CapFrameX](https://www.capframex.com/), sur un seul processus et une seule swap chain. Forge n'intègre pas de capture automatique en jeu. Respecte les règles du jeu et de son anticheat.
+3. Tu peux aussi importer **30 à 60 secondes** depuis [PresentMon](https://github.com/GameTechDev/PresentMon) ou un export brut de [CapFrameX](https://www.capframex.com/), sur un seul processus et une seule swap chain. Ce parcours est facultatif, dans la section avancée. Respecte les règles du jeu et de son anticheat.
 4. Exporte un CSV contenant une image par ligne et une colonne `MsBetweenPresents`, `FrameTime (ms)`, `frametime_ms` ou `Frametime`, **en millisecondes**. Séparateurs acceptés : virgule, point-virgule ou tabulation ; décimales à virgule avec point-virgule/tabulation. Limites : 16 Mio, 250 000 images, minimum 120 images. Les zéros d'initialisation, valeurs invalides et mélanges de processus sont signalés, pas corrigés silencieusement.
 5. Importe et compare des parcours identiques. Une hausse des FPS sur une autre carte ou après une mise à jour du jeu n'est pas une preuve d'effet de Forge.
 
@@ -70,9 +86,17 @@ Les données importées mesurent les intervalles de présentation : elles ne gar
 
 Les temps bruts restent en mémoire ; seuls les dix derniers résumés volontairement enregistrés persistent localement. L'export JSON ne contient pas les chemins d'installation ni les temps bruts. L'historique peut être effacé dans l'interface.
 
-Le benchmark propose trois parcours : **Tester ce PC**, **FPS dans mes jeux** et **Comparer aux tests publiés**. Le diagnostic local conserve une charge CPU limitée à quatre workers et un test disque temporaire (lecture possiblement cachée). La nouvelle scène 3D Forge, en 1280 × 720 avec jusqu'à 64 étapes de ray marching par pixel, mesure le temps GPU via `EXT_disjoint_timer_query_webgl2` quand disponible (au moins 10 mesures après préchauffage, rejet si horloge disjointe). Le débit de présentation autour de 60 FPS n'est plus affiché comme résultat gaming. Sans compteur fiable, le temps GPU est déclaré indisponible. **Ce n'est pas un stress test, un score 3DMark ou une prédiction de FPS en jeu.** Les anciens résultats CPU sont conservés ; les anciennes mesures GPU ne sont pas assimilées à la nouvelle scène.
+Le benchmark propose trois parcours : **Mes FPS mesurés**, **Repères FPS en jeu** et **Test matériel (facultatif)**. Le diagnostic local conserve une charge CPU limitée à quatre workers et un test disque temporaire (lecture possiblement cachée). La scène 3D Forge, en 1280 × 720 avec jusqu'à 64 étapes de ray marching par pixel, mesure le temps GPU via `EXT_disjoint_timer_query_webgl2` quand disponible (au moins 10 mesures après préchauffage, rejet si horloge disjointe). Le débit de présentation autour de 60 FPS n'est pas affiché comme résultat gaming. Sans compteur fiable, le temps GPU est déclaré indisponible. **Ce n'est pas un stress test, un score 3DMark ou une prédiction de FPS en jeu.** Les anciens résultats CPU sont conservés ; les anciennes mesures GPU ne sont pas assimilées à la nouvelle scène.
 
-La section références permet d'afficher CPU/GPU/RAM et d'ouvrir les essais TechPowerUp, ComputerBase et Notebookcheck, ainsi que Cinebench/3DMark/CrystalDiskMark avec leur rôle expliqué. Elle ne copie pas leurs bases et ne convertit pas leurs scores en scores Forge. Notebookcheck contient aussi des valeurs interpolées : vérifier la configuration individuelle testée et la méthode, pas seulement un tableau global.
+Les repères publiés sont consultables dans l'app hors ligne : sélection limitée de faits issus du [test TechSpot / Hardware Unboxed de la RTX 5070 Ti](https://www.techspot.com/review/2955-nvidia-geforce-rtx-5070-ti/) (février 2025, vérifiés le 11 octobre 2026). Trois jeux (CS2, Cyberpunk 2077 Phantom Liberty, War Thunder), six GPU de bureau, 1440p/4K. Le CPU de test est un Ryzen 7 9800X3D avec DDR5-6000 CL30, pas nécessairement le CPU utilisateur. Les valeurs exactes, préréglages, attribution et adresses des graphiques sont indiqués dans la méthode ; aucune image ni prose du test n'est redistribuée. Les FPS arrondis à 5 près sont des repères historiques, pas une prédiction de la configuration détectée ni un intervalle de confiance. Aucun remplacement par une carte voisine, aucune extrapolation CPU/résolution et aucun verdict normal/anormal tiré d'un autre PC.
+
+### Fiabilité du diagnostic
+
+Les noms d'écrans, dimensions physiques et fréquences actives viennent désormais de l'API native Electron/Windows, pas des informations WMI graphiques tronquées. Les écrans portrait et le facteur d'échelle DPI sont pris en compte. Les écrans sont relus séparément du cache WMI des détails avancés et lors du retour au Diagnostic. Une fréquence active n'est pas la fréquence maximale supportée.
+
+Les cartes disque affichent le **statut Windows déclaré** (`Get-PhysicalDisk`) et les compteurs transmis par le pilote (`Get-StorageReliabilityCounter`). Elles ne traduisent plus `Healthy` par un verdict de santé globale. Une usure annoncée à 0% n'est pas une preuve de durée de vie restante ; une valeur absente reste inconnue et les refus d'accès sont visibles. Ce n'est pas une analyse SMART/NVMe complète.
+
+Les pilotes suivent le parcours détection, assistant constructeur officiel ou sélection Windows Update, confirmation d'installation, redémarrage si demandé. Un assistant ouvert n'est pas un pilote installé ; aucune offre Windows Update ne certifie pas que tous les pilotes sont les plus récents.
 
 ---
 

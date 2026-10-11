@@ -49,8 +49,31 @@ test('Electron opens, remains idle, protects actions and completes or cancels be
         warnings: ['Steam: test library unavailable']
       }))
       replace('system:details', () => ({
-        displays: [{ model: 'Test display', main: true, resX: 1920, resY: 1080, hz: 60, connection: 'HDMI' }]
+        bios: null, tpm: null, windows: null, ramSlots: [], diskWarnings: [],
+        diskHealth: [{ model: 'Test SSD', health: 'Healthy', tempC: 39, powerOnHours: null, wearPercent: 0, error: '' }],
+        displays: [{ model: 'Stale WMI display', main: true, resX: 2560, resY: 1440, hz: 165, connection: 'HDMI' }]
       }))
+      const displays = [
+        { id: '1', model: 'PG27AQWP-W', main: true, resX: 2560, resY: 1440, hz: 540, connection: '' },
+        { id: '2', model: 'VG279QL1A', main: false, resX: 1080, resY: 1920, hz: 165, connection: '' },
+        { id: '3', model: 'Test display', main: false, resX: 1920, resY: 1080, hz: 60, connection: '' }
+      ]
+      replace('system:displays', () => displays)
+      replace('system:gamingHardware', () => ({
+        cpu: 'Intel Core i7-14700KF', gpus: [{ model: 'NVIDIA GeForce RTX 5070 Ti', vendor: 'NVIDIA', vramMB: 16303 }],
+        ramGB: 32, isLaptop: false, displays, warnings: []
+      }))
+      replace('games:toolStatus', () => ({ ready: !!globalThis.smoke.toolReady, version: '2.6.0', supported: true }))
+      replace('games:installTool', () => { globalThis.smoke.toolReady = true })
+      replace('games:removeTool', () => { globalThis.smoke.toolReady = false })
+      replace('games:processes', () => [{ pid: 42, name: 'cs2', title: 'Counter-Strike 2', started: 'start-id' }])
+      replace('games:record', (event, pid, started, seconds) => new Promise((resolve, reject) => {
+        globalThis.smoke.captureRequest = { pid, started, seconds }
+        globalThis.smoke.finishCapture = resolve
+        globalThis.smoke.failCapture = reject
+        event.sender.send('games:recordProgress', { startsAt: Date.now() + 5000, endsAt: Date.now() + 35000 })
+      }))
+      replace('games:cancelRecord', () => globalThis.smoke.finishCapture?.(null))
       replace('clean:preview', () => [
         { id: 'user-temp', name: 'Temporary files', description: 'Old files', needsAdmin: false, sizeMB: 5 },
         { id: 'recycle', name: 'Recycle bin', description: 'Deleted files', needsAdmin: false, sizeMB: 10 }
@@ -75,7 +98,7 @@ test('Electron opens, remains idle, protects actions and completes or cancels be
       replace('net:dns', () => [])
       replace('net:speedtest', () => new Promise((resolve) => { globalThis.smoke.finishSpeed = resolve }))
       replace('net:cancelSpeed', () => { globalThis.smoke.finishSpeed?.({ downMbps: null, upMbps: null }) })
-      replace('browser:report', () => ({ defaultBrowser: 'vivaldi', defaults: { http: 'brave', https: 'vivaldi' }, installed: ['vivaldi', 'firefox'], running: [] }))
+      replace('browser:report', () => ({ defaultBrowser: 'vivaldi', defaults: { http: 'brave', https: 'vivaldi' }, installed: ['vivaldi', 'firefox'], running: [{ id: 'vivaldi', name: 'Vivaldi', ramMB: 2190 }] }))
       replace('browser:defaults', (_event, id) => { globalThis.smoke.defaultRequested = id; return { ok: true, message: 'Confirm in Windows Settings' } })
       replace('browser:install', () => { throw new Error('Browser install unavailable') })
       replace('report:generate', () => { throw new Error('Documents folder unavailable') })
@@ -85,6 +108,11 @@ test('Electron opens, remains idle, protects actions and completes or cancels be
     await expect(page.getByRole('button', { name: 'Scan hardware', exact: true })).toBeVisible()
     assert.equal(await electron.evaluate(() => globalThis.smoke.reportCalls), 0)
     assert.equal(await page.evaluate(() => getComputedStyle(document.body, '::before').animationName), 'none')
+    await page.getByRole('button', { name: 'Load advanced details', exact: false }).click()
+    await expect(page.locator('.card').filter({ hasText: 'PG27AQWP-W' })).toContainText('540 Hz')
+    await expect(page.getByText('Stale WMI display')).toHaveCount(0)
+    await expect(page.locator('.card').filter({ hasText: 'Test SSD' })).toContainText('Windows-reported status: Healthy')
+    await expect(page.locator('.card').filter({ hasText: 'Test SSD' })).toContainText('not a complete SMART/NVMe health test')
     await page.screenshot({ path: join(artifacts, 'dashboard.png'), animations: 'disabled' })
 
     await page.locator('.nav-btn').nth(1).click()
@@ -162,12 +190,49 @@ test('Electron opens, remains idle, protects actions and completes or cancels be
     assert.deepEqual(await electron.evaluate(() => globalThis.smoke.planWrites), ['menu-delay', 'menu-delay'])
 
     await page.locator('.nav-btn').nth(2).click()
-    await page.getByRole('tab', { name: '2. FPS in my games', exact: true }).click()
+    await expect(page.getByRole('tab', { name: 'My measured FPS', exact: true })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('button', { name: 'Download the official measurement tool', exact: true })).toBeEnabled()
+    await expect(page.getByLabel('Import frame-time CSV', { exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Download the official measurement tool', exact: true }).click()
+    const recordButton = page.getByRole('button', { name: 'Measure for 30 seconds', exact: true })
+    await recordButton.click()
+    await expect(page.getByRole('tab', { name: 'Hardware test (optional)', exact: true })).toBeDisabled()
+    assert.deepEqual(await electron.evaluate(() => globalThis.smoke.captureRequest), { pid: 42, started: 'start-id', seconds: 30 })
+    await electron.evaluate(() => globalThis.smoke.finishCapture({
+      version: 1, date: new Date().toISOString(), process: 'cs2', hardware: 'fixture', initializationRows: 1, warnings: [],
+      summary: { count: 3000, durationSeconds: 30, averageFps: 100, low1Fps: 100, p99Ms: 10, maxMs: 10, over50: 0, over100: 0 }
+    }))
+    await expect(page.getByRole('region', { name: 'Measured on this PC', exact: true })).toContainText('100 FPS')
+    await expect(page.getByRole('region', { name: 'Measured on this PC', exact: true })).toContainText('does not mean your PC is faulty')
+    await expect(page.getByRole('region', { name: 'Measured on this PC', exact: true })).toContainText('0/3')
+    await page.screenshot({ path: join(artifacts, 'recording.png'), fullPage: true })
+    await recordButton.click()
+    await page.getByRole('button', { name: 'Cancel recording', exact: true }).click()
+    await expect(page.getByText('Recording cancelled. No partial FPS result saved.', { exact: true })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Measured on this PC', exact: true })).toHaveCount(0)
+    await recordButton.click()
+    await electron.evaluate(() => globalThis.smoke.failCapture(new Error('ETW access denied')))
+    await expect(page.getByRole('alert').filter({ hasText: 'ETW access denied' })).toBeVisible()
+    await expect(recordButton).toBeEnabled()
+    await page.getByRole('tab', { name: 'Game FPS references', exact: true }).click()
+    await expect(page.getByRole('article', { name: 'Counter-Strike 2', exact: true })).toContainText('About 480 FPS')
+    await expect(page.getByLabel('My gaming display', { exact: true })).toContainText('PG27AQWP-W')
+    await page.getByLabel('Game', { exact: true }).selectOption('fortnite')
+    await expect(page.getByRole('status')).toContainText('No verified reference')
+    await page.getByLabel('Game', { exact: true }).selectOption('all')
+    await page.getByLabel('My gaming display', { exact: true }).selectOption('1')
+    await expect(page.getByRole('status')).toContainText('No reference at this resolution')
+    await expect(page.getByRole('article')).toHaveCount(0)
+    await page.getByRole('tab', { name: 'My measured FPS', exact: true }).click()
+    await expect(page.getByRole('region', { name: 'Measured on this PC', exact: true })).toContainText('100 FPS')
+    await page.getByText('Advanced: analyze my own game capture', { exact: true }).click()
     await page.getByRole('button', { name: 'Find my installed games', exact: true }).click()
     await page.getByLabel('Detected games (Steam / Epic)').selectOption('epic:test')
     await expect(page.getByLabel('Game name and edition')).toHaveValue('Cyberpunk 2077')
     await expect(page.getByText('Steam: test library unavailable', { exact: true })).toBeVisible()
     await page.getByLabel('Actual graphics settings', { exact: true }).fill('Medium, native, RT off, no cap')
+    await expect(page.getByLabel('Resolution', { exact: true })).toHaveValue('2560 × 1440')
+    await page.getByLabel('Resolution', { exact: true }).fill('1920 × 1080')
     await page.getByLabel('Repeatable scene / route', { exact: true }).fill('Built-in benchmark, same PC')
     await page.getByLabel('Frame generation during this capture', { exact: true }).selectOption('off')
     const captureInput = page.getByLabel('Import frame-time CSV', { exact: true })
@@ -175,6 +240,7 @@ test('Electron opens, remains idle, protects actions and completes or cancels be
     await captureInput.setInputFiles({ name: 'measured-120.csv', mimeType: 'text/csv', buffer: csv(120) })
     await expect(page.getByRole('region', { name: '3. Understand your measured results' })).toContainText('120 FPS')
     await page.getByRole('button', { name: 'Detect my displays', exact: true }).click()
+    await page.getByRole('region', { name: 'Does your screen match these games?' }).locator('select').selectOption('2')
     await expect(page.getByRole('region', { name: 'Does your screen match these games?' })).toContainText('A 120 Hz option')
     const exportPath = join(userData, 'gaming-summary.json')
     await electron.evaluate(({ session }, filename) => {
@@ -215,9 +281,9 @@ test('Electron opens, remains idle, protects actions and completes or cancels be
     await expect(page.getByRole('region', { name: '3. Understand your measured results' })).toHaveCount(0)
     await page.locator('.nav-btn').nth(0).click()
     await page.locator('.nav-btn').nth(2).click()
-    await page.getByRole('tab', { name: '2. FPS in my games', exact: true }).click()
+    await page.getByText('Advanced: analyze my own game capture', { exact: true }).click()
     await expect(page.getByText('Saved gaming sessions (1/10)', { exact: true })).toBeVisible()
-    await page.getByRole('tab', { name: '1. Test this PC', exact: true }).click()
+    await page.getByRole('tab', { name: 'Hardware test (optional)', exact: true }).click()
     await page.getByRole('button', { name: 'Run benchmark', exact: false }).click()
     await page.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Run benchmark', exact: false })).toBeEnabled()
@@ -309,6 +375,10 @@ test('Electron opens, remains idle, protects actions and completes or cancels be
     await speed.click()
     await page.locator('.nav-btn').nth(7).click()
     await page.getByRole('button', { name: 'Detect my browsers', exact: false }).click()
+    const runningBrowser = page.locator('.card').filter({ hasText: '2190' })
+    await runningBrowser.getByRole('button', { name: 'Set as default', exact: true }).click()
+    assert.equal(await electron.evaluate(() => globalThis.smoke.defaultRequested), 'vivaldi')
+    await expect(runningBrowser.locator('.badge.okay')).toHaveCount(0)
     const installBrowser = page.locator('.row').filter({ hasText: 'Brave' }).getByRole('button')
     await installBrowser.click()
     await expect(installBrowser).toBeEnabled()

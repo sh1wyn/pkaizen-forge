@@ -1,5 +1,7 @@
+import type { CaptureProcess, RecordedRun, RecordingProgress } from '../shared/recording'
 import type {
   SystemReport,
+  GamingHardware,
   LiveStats,
   TweakInfo,
   TweakState,
@@ -36,6 +38,8 @@ declare global {
       checkUpdates: () => Promise<{ status: 'dev' | 'available' | 'uptodate' | 'error'; current: string; newVersion?: string; message?: string }>
       relaunchAdmin: () => Promise<{ ok: boolean; message?: string }>
       getSystemReport: () => Promise<SystemReport>
+      getGamingHardware: () => Promise<GamingHardware>
+      getDisplays: () => Promise<DetailedInfo['displays']>
       getLiveStats: () => Promise<LiveStats>
       getInsights: () => Promise<Insight[]>
       getDetailedInfo: () => Promise<DetailedInfo>
@@ -51,6 +55,13 @@ declare global {
       diskBench: () => Promise<DiskBenchResult>
       cancelDiskBench: () => Promise<void>
       getInstalledGames: () => Promise<GameLibrary>
+      recordingToolStatus: () => Promise<{ ready: boolean; supported: boolean; version: string }>
+      installRecordingTool: () => Promise<void>
+      removeRecordingTool: () => Promise<void>
+      captureProcesses: () => Promise<CaptureProcess[]>
+      startRecording: (pid: number, started: string, seconds: number) => Promise<RecordedRun | null>
+      cancelRecording: () => Promise<void>
+      onRecordingProgress: (cb: (value: RecordingProgress) => void) => () => void
 
       previewClean: () => Promise<CleanTarget[]>
       runClean: (ids: string[]) => Promise<CleanResult[]>

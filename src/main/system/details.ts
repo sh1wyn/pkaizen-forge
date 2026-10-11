@@ -1,7 +1,7 @@
 import si, { windowsBuild, windowsName } from './hardware'
 import { psJson, asArray } from './powershell'
-import { T } from './i18n'
 import type { DetailedInfo } from '../../shared/types'
+import { getDisplays } from './displays'
 
 interface RawDetails {
   bios: { vendor: string; version: string; date: string; uefi: boolean; secureBoot: number }
@@ -9,7 +9,8 @@ interface RawDetails {
   os: { edition: string; displayVersion: string; installDate: string; fastStartup: number; hvci: number }
   av: string[] | string | null
   ram: { bank: string; maker: string; part: string; sizeGB: number; configured: number; rated: number }[] | null
-  disks: { model: string; health: string; tempC: number; hours: number; wear: number }[] | null
+  disks: { model: string; health: string; tempC: number | null; hours: number | null; wear: number | null; error: string }[] | null
+  diskWarnings: string[]
 }
 
 // La requête WMI (BIOS/TPM/RAM/SMART) est lourde : cache 5 min.
@@ -17,7 +18,7 @@ let rawCache: { at: number; data: RawDetails | null } | null = null
 
 export async function getDetailedInfo(): Promise<DetailedInfo> {
   const cachedRaw = rawCache && Date.now() - rawCache.at < 5 * 60_000 ? rawCache.data : undefined
-  const [raw, graphics, osInfo, time] = await Promise.all([
+  const [raw, osInfo, time] = await Promise.all([
     cachedRaw !== undefined
       ? Promise.resolve(cachedRaw)
       : psJson<RawDetails>(
@@ -51,19 +52,22 @@ export async function getDetailedInfo(): Promise<DetailedInfo> {
         }
       })
       $disks = $null
+      $diskWarnings = @()
       try {
-        $disks = @(Get-PhysicalDisk | ForEach-Object {
+        $disks = @(Get-PhysicalDisk -ErrorAction Stop | ForEach-Object {
           $r = $null
-          try { $r = $_ | Get-StorageReliabilityCounter -ErrorAction Stop } catch {}
+          $counterError = ''
+          try { $r = $_ | Get-StorageReliabilityCounter -ErrorAction Stop } catch { $counterError = $_.Exception.Message }
           @{
             model = [string]$_.FriendlyName
             health = [string]$_.HealthStatus
-            tempC = if ($r -and $r.Temperature) { [int]$r.Temperature } else { -1 }
-            hours = if ($r -and $r.PowerOnHours) { [int]$r.PowerOnHours } else { -1 }
-            wear = if ($r -and $r.Wear -ne $null) { [int]$r.Wear } else { -1 }
+            tempC = if ($r -and $null -ne $r.Temperature) { [double]$r.Temperature } else { $null }
+            hours = if ($r -and $null -ne $r.PowerOnHours) { [double]$r.PowerOnHours } else { $null }
+            wear = if ($r -and $null -ne $r.Wear) { [double]$r.Wear } else { $null }
+            error = $counterError
           }
         })
-      } catch {}
+      } catch { $diskWarnings += $_.Exception.Message }
       ConvertTo-Json @{
         bios = @{ vendor = [string]$bios.Manufacturer; version = [string]$bios.SMBIOSBIOSVersion; date = if ($bios.ReleaseDate) { $bios.ReleaseDate.ToString('yyyy-MM-dd') } else { '' }; uefi = $uefi; secureBoot = [int]$sb }
         tpm = $tpm
@@ -71,15 +75,19 @@ export async function getDetailedInfo(): Promise<DetailedInfo> {
         av = $av
         ram = $ram
         disks = $disks
+        diskWarnings = $diskWarnings
       } -Depth 5
       `,
       90000
     ),
-    si.graphics(),
     si.osInfo(),
     Promise.resolve(si.time())
   ])
   if (cachedRaw === undefined) rawCache = { at: Date.now(), data: raw }
+  const diskWarnings = raw ? asArray(raw.diskWarnings) : ['Windows storage inventory unavailable']
+  for (const warning of [...diskWarnings, ...asArray(raw?.disks ?? null).map((disk) => disk.error).filter(Boolean)]) {
+    console.error('[Pkaizen] Disk counters:', warning)
+  }
 
   const uptimeH = Math.round((time.uptime / 3600) * 10) / 10
 
@@ -117,18 +125,13 @@ export async function getDetailedInfo(): Promise<DetailedInfo> {
     })),
     diskHealth: asArray(raw?.disks ?? null).map((d) => ({
       model: d.model,
-      health: d.health === 'Healthy' ? T('Good', 'Bon état') : d.health,
-      tempC: d.tempC >= 0 ? d.tempC : null,
-      powerOnHours: d.hours >= 0 ? d.hours : null,
-      wearPercent: d.wear >= 0 ? d.wear : null
+      health: d.health,
+      tempC: typeof d.tempC === 'number' && Number.isFinite(d.tempC) && d.tempC > 0 && d.tempC < 150 ? d.tempC : null,
+      powerOnHours: typeof d.hours === 'number' && Number.isFinite(d.hours) && d.hours >= 0 ? d.hours : null,
+      wearPercent: typeof d.wear === 'number' && Number.isFinite(d.wear) && d.wear >= 0 && d.wear <= 255 ? d.wear : null,
+      error: d.error || ''
     })),
-    displays: graphics.displays.map((d) => ({
-      model: d.model || 'Écran',
-      main: !!d.main,
-      resX: d.currentResX || d.resolutionX || 0,
-      resY: d.currentResY || d.resolutionY || 0,
-      hz: d.currentRefreshRate || 0,
-      connection: d.connection || ''
-    }))
+    diskWarnings,
+    displays: getDisplays()
   }
 }

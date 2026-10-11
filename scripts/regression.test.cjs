@@ -21,7 +21,174 @@ function load(relative, mocks = {}, globals = {}) {
   return module.exports
 }
 
-const gaming = () => load('src/renderer/src/lib/gaming.ts', {}, { TextEncoder })
+const gaming = () => load('src/shared/gaming.ts', {}, { TextEncoder })
+const recording = () => load('src/shared/recording.ts', { './gaming': gaming() }, { TextEncoder })
+
+test('native displays preserve names, active Hz, portrait geometry and physical DPI, without a stale cache', () => {
+  let displays = [
+    { id: 1, label: 'PG27AQWP-W', displayFrequency: 540, bounds: { x: 0, y: 0, width: 2560, height: 1440 }, scaleFactor: 1 },
+    { id: 2, label: 'VG279QL1A', displayFrequency: 165, bounds: { x: -1080, y: 0, width: 1080, height: 1920 }, scaleFactor: 1 },
+    { id: 3, label: '4K', displayFrequency: 0, bounds: { x: 2560, y: 0, width: 2560, height: 1440 }, scaleFactor: 1.5 }
+  ]
+  const { getDisplays } = load('src/main/system/displays.ts', { electron: { screen: {
+    getPrimaryDisplay: () => displays[0],
+    getAllDisplays: () => displays,
+    dipToScreenRect: (_window, bounds) => {
+      const factor = displays.find((display) => display.bounds === bounds).scaleFactor
+      return { ...bounds, width: bounds.width * factor, height: bounds.height * factor }
+    }
+  } } })
+  assert.deepEqual(JSON.parse(JSON.stringify(getDisplays())).map(({ model, resX, resY, hz }) => [model, resX, resY, hz]), [
+    ['PG27AQWP-W', 2560, 1440, 540], ['VG279QL1A', 1080, 1920, 165], ['4K', 3840, 2160, 0]
+  ])
+  displays = [{ ...displays[0], displayFrequency: 240 }]
+  assert.equal(getDisplays().length, 1)
+  assert.equal(getDisplays()[0].hz, 240)
+})
+
+test('published references match only exact supported desktop GPU and measured resolution', () => {
+  const { referenceGpu, referencesFor, roundedFps } = load('src/renderer/src/lib/gameReferences.ts')
+  assert.equal(referenceGpu('NVIDIA GeForce RTX 5070 Ti', false), 'RTX 5070 Ti')
+  for (const model of ['RTX 5070', 'RTX 5070 Ti Laptop GPU', 'RTX 4070 Ti', 'RTX 4070 Super OC']) assert.equal(referenceGpu(model, false), null)
+  for (const laptop of [true, null]) assert.equal(referenceGpu('RTX 5070 Ti', laptop), null)
+  for (const [width, height] of [[1920, 1080], [1440, 2560], [0, 0]]) assert.equal(referencesFor('RTX 5070 Ti', false, width, height).length, 0)
+  const rows = referencesFor('RTX 5070 Ti', false, 2560, 1440)
+  assert.equal(rows.length, 3)
+  assert.equal(rows[0].average, 479)
+  assert.equal(rows[0].low1, 296)
+  assert.equal(roundedFps(rows[0].average), 480)
+  assert.equal(referencesFor('RTX 5070 Ti', false, 3840, 2160)[1].average, 67)
+})
+
+const recordedCsv = (fps = 100, count = 3001) => 'Application,ProcessID,SwapChainAddress,TimeInSeconds,MsBetweenPresents\n' +
+  Array.from({ length: count }, (_, index) => `game.exe,42,0x1,${(index / fps).toFixed(6)},${index ? (1000 / fps).toFixed(6) : 0}`).join('\n')
+
+test('automatic recordings validate PID, one stream, ordered intervals and minimum duration; first interval is excluded', () => {
+  const { parseRecording } = recording()
+  const result = parseRecording(recordedCsv(), 42)
+  assert.equal(result.summary.averageFps, 100)
+  assert.equal(result.summary.durationSeconds, 30)
+  assert.equal(result.initializationRows, 1)
+  assert.equal(parseRecording(recordedCsv().replace('MsBetweenPresents', 'msBetweenPresents'), 42).summary.averageFps, 100)
+  assert.throws(() => parseRecording(recordedCsv(), 43), /process/)
+  assert.throws(() => parseRecording(recordedCsv().replace('0x1,0.010000', '0x2,0.010000'), 42), /Multiple/)
+  assert.throws(() => parseRecording(recordedCsv(100, 121), 42), /25 seconds/)
+  assert.throws(() => parseRecording(recordedCsv().replace('0.010000,10.000000', '0.010000,0'), 42), /invalid frame/)
+  assert.throws(() => parseRecording(recordedCsv().replace('0.010000,10.000000', '0.000000,10.000000'), 42), /unordered/)
+  assert.throws(() => parseRecording(recordedCsv().replace('0.010000,10.000000', '0.030000,10.000000'), 42), /Discontinuous/)
+  assert.throws(() => parseRecording('Application,ProcessID\nx,42', 42), /Missing/)
+})
+
+test('performance verdict and baseline never call a different configuration normal; require three previous comparable runs', () => {
+  const { baselineComparison, performanceVerdict, validRecording } = recording()
+  const summary = gaming().summarizeFrames(Array(3000).fill(10))
+  const current = { run: { version: 1, date: '2026-10-11T10:10:00Z', process: 'game', hardware: 'cpu,gpu,ram', summary, initializationRows: 1, warnings: [] },
+    conditions: { resolution: '2560x1440', settings: 'Medium, native, cap off', scene: 'v1 route1', frameGeneration: 'off', target: 100 } }
+  assert.ok(validRecording(current))
+  assert.equal(performanceVerdict(summary, 100), 'met')
+  assert.equal(performanceVerdict(summary, 144), 'below')
+  assert.equal(performanceVerdict({ ...summary, low1Fps: 79.9 }, 100), 'uneven')
+  assert.equal(performanceVerdict({ ...summary, low1Fps: 80 }, 100), 'met')
+  const history = [1, 2, 3].map((day) => ({ ...current, run: { ...current.run, date: `2026-10-0${day}T10:10:00Z` } }))
+  assert.equal(baselineComparison(current, history).kind, 'consistent')
+  assert.equal(baselineComparison(current, history.slice(1)).kind, 'insufficient')
+  for (const key of ['resolution', 'settings', 'scene', 'frameGeneration']) {
+    assert.equal(baselineComparison({ ...current, conditions: { ...current.conditions, [key]: 'different' } }, history).kind, 'insufficient')
+  }
+  assert.equal(baselineComparison({ ...current, run: { ...current.run, hardware: '' } }, history).kind, 'insufficient')
+  assert.equal(baselineComparison({ ...current, run: { ...current.run, summary: { ...summary, averageFps: 84.9 } } }, history).kind, 'lower')
+  for (const averageFps of [85, 115]) assert.equal(baselineComparison({ ...current, run: { ...current.run, summary: { ...summary, averageFps } } }, history).kind, 'consistent')
+  assert.equal(validRecording({ ...current, conditions: { ...current.conditions, target: NaN } }), false)
+})
+
+test('disk counters preserve unknown/error states and Windows source status, with live displays despite cached WMI', async () => {
+  let hz = 540
+  let probes = 0
+  const raw = {
+    bios: {}, os: {}, ram: [], diskWarnings: [],
+    disks: [
+      { model: 'SSD', health: 'Healthy', tempC: 39, hours: 0, wear: 0, error: '' },
+      { model: 'USB', health: 'Unknown', tempC: null, hours: null, wear: null, error: 'Access denied' },
+      { model: 'Bad data', health: '', tempC: 999, hours: -1, wear: 999, error: '' }
+    ]
+  }
+  const { getDetailedInfo } = load('src/main/system/details.ts', {
+    './hardware': { __esModule: true, default: { osInfo: async () => ({}), time: () => ({ uptime: 100 }) }, windowsName: () => 'Windows', windowsBuild: () => 1 },
+    './powershell': { psJson: async () => { probes++; return raw }, asArray: (value) => value == null ? [] : Array.isArray(value) ? value : [value] },
+    './displays': { getDisplays: () => [{ model: 'PG27AQWP-W', hz }] }
+  }, { console: { error() {} } })
+  const details = await getDetailedInfo()
+  assert.equal(details.diskHealth[0].health, 'Healthy', 'Must not upgrade Windows status into a health verdict')
+  assert.equal(details.diskHealth[0].wearPercent, 0, 'Zero is a reported counter, not inferred life remaining')
+  assert.equal(details.diskHealth[0].powerOnHours, 0)
+  assert.equal(details.diskHealth[1].wearPercent, null)
+  assert.equal(details.diskHealth[1].error, 'Access denied')
+  assert.equal(details.diskHealth[2].tempC, null)
+  assert.equal(details.diskHealth[2].wearPercent, null)
+  hz = 240
+  assert.equal((await getDetailedInfo()).displays[0].hz, 240)
+  assert.equal(probes, 1)
+})
+
+test('recording service validates targets, bounds capture arguments and stops only its own ETW session', async () => {
+  const { EventEmitter } = require('node:events')
+  const digest = 'b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af'
+  const spawns = []
+  let live
+  let collectorClosed = false
+  let finishImmediately = true
+  const service = load('src/main/system/recording.ts', {
+    electron: { app: { getPath: () => 'C:\\fixture' } },
+    crypto: { randomUUID: () => 'unique-fixture', createHash: () => ({ update: () => ({ digest: () => digest }) }) },
+    'fs/promises': { readFile: async () => Buffer.alloc(980320) },
+    os: { machine: () => 'x86_64' },
+    './powershell': { ps: async () => JSON.stringify([{ pid: 42, name: 'game', title: 'Game', started: 'start-id' }]) },
+    './sysinfo': { getGamingHardware: async () => ({ cpu: 'CPU', gpus: [{ model: 'GPU' }], ramGB: 32, warnings: [] }) },
+    '../../shared/gaming': gaming(), '../../shared/recording': recording(),
+    child_process: { spawn: (_exe, args, options) => {
+      spawns.push({ args, options, collectorClosed })
+      const child = new EventEmitter()
+      child.stdout = new EventEmitter()
+      child.stderr = new EventEmitter()
+      child.pid = 999
+      child.kill = () => child.emit('close', 1)
+      if (args.includes('--terminate_existing_session')) {
+        queueMicrotask(() => { child.emit('close', 0); collectorClosed = true; live.emit('close', 0) })
+      } else {
+        live = child
+        collectorClosed = false
+        queueMicrotask(() => {
+          child.emit('spawn')
+          if (finishImmediately) { child.stdout.emit('data', Buffer.from(recordedCsv())); child.emit('close', 0) }
+        })
+      }
+      return child
+    } }
+  }, { process: { platform: 'win32', arch: 'x64', pid: 100 }, AbortController, AbortSignal })
+  await assert.rejects(service.startRecording(0, 'start-id', 30, () => {}), /Invalid/)
+  await assert.rejects(service.startRecording(42, 'wrong-start-id', 30, () => {}), /restarted/)
+  const run = await service.startRecording(42, 'start-id', 30, () => {})
+  assert.equal(run.summary.averageFps, 100)
+  assert.equal(service.isRecording(), false)
+  assert.ok(spawns[0].args.includes('--process_id'))
+  assert.ok(!spawns[0].args.includes('--restart_as_admin'))
+  assert.ok(!spawns[0].args.includes('--stop_existing_session'))
+  assert.equal(spawns[0].options.shell, undefined)
+  finishImmediately = false
+  let notify
+  const started = new Promise((resolve) => { notify = resolve })
+  const pending = service.startRecording(42, 'start-id', 30, notify)
+  await started
+  await assert.rejects(service.startRecording(42, 'start-id', 30, () => {}), /already running/)
+  await service.cancelRecording()
+  assert.equal(await pending, null)
+  assert.equal(service.isRecording(), false)
+  assert.ok(spawns[2].args.includes('--terminate_existing_session'))
+  assert.equal(spawns[1].args[3], spawns[2].args[1])
+  assert.equal(spawns[2].collectorClosed, false)
+  assert.equal(spawns[3].collectorClosed, true, 'Retry ETW cleanup after exit, including late-created sessions')
+  assert.deepEqual(spawns[3].args, spawns[2].args, 'Both cleanup attempts target only the same owned session')
+})
 
 test('optimization profiles require explicit eligible selections and exclude risky automatic changes', () => {
   const { exclusionFor, profileSelection } = load('src/renderer/src/lib/optimization.ts')
@@ -274,6 +441,7 @@ test('live stats use OS counters only, including missing CPUs and zero RAM', asy
   let tick = 0
   let empty = false
   const { getLiveStats } = load('src/main/system/sysinfo.ts', {
+    './displays': { getDisplays: () => [] },
     './hardware': { __esModule: true, default: new Proxy({}, { get() { throw new Error('unexpected hardware probe') } }) },
     os: {
       cpus: () => empty ? [] : [{ times: { idle: tick++ * 50, user: tick * 50, sys: 0, nice: 0, irq: 0 } }],

@@ -3,8 +3,8 @@ import type { DiskBenchResult } from '../../../shared/types'
 import { useI18n } from '../lib/i18n'
 import { useToast } from '../components/Toast'
 import { benchmarkThreads, runCpuWorkers, runGpuBench } from '../lib/benchmark'
-import GamingBenchmark from '../components/GamingBenchmark'
-import BenchmarkReferences from '../components/BenchmarkReferences'
+import GamingOverview from '../components/GamingOverview'
+import GameRecording from '../components/GameRecording'
 
 interface BenchRun {
   date: string
@@ -33,7 +33,8 @@ function validRun(value: unknown): value is BenchRun {
 
 export default function Benchmark(): React.JSX.Element {
   const { t } = useI18n()
-  const [view, setView] = useState<'local' | 'games' | 'references'>('local')
+  const [view, setView] = useState<'local' | 'games' | 'references'>('games')
+  const [recordingBusy, setRecordingBusy] = useState(false)
   const [phase, setPhase] = useState<'idle' | 'cpu1' | 'cpuN' | 'disk' | 'gpu'>('idle')
   const [gpuName, setGpuName] = useState('')
   const [result, setResult] = useState<BenchRun | null>(null)
@@ -141,15 +142,14 @@ export default function Benchmark(): React.JSX.Element {
   return (
     <>
       <h1>{t('bench.title')}</h1>
-      <p className="subtitle">{t('forge.choose')}</p>
       <div className="toolbar" role="tablist" aria-label={t('bench.title')}>
         {([
-          ['local', 'forge.localTab'], ['games', 'forge.gamesTab'], ['references', 'forge.referencesTab']
+          ['games', 'record.tab'], ['references', 'simple.gamesTab'], ['local', 'simple.localTab']
         ] as const).map(([id, key]) => <button key={id} role="tab" aria-selected={view === id}
-          className={`btn ${view === id ? 'primary' : ''}`} disabled={phase !== 'idle'} onClick={() => setView(id)}>{t(key)}</button>)}
+          className={`btn ${view === id ? 'primary' : ''}`} disabled={phase !== 'idle' || recordingBusy} onClick={() => setView(id)}>{t(key)}</button>)}
       </div>
-      {view === 'games' && <GamingBenchmark disabled={phase !== 'idle'} />}
-      {view === 'references' && <BenchmarkReferences disabled={phase !== 'idle'} />}
+      {view === 'games' && <GameRecording onBusy={setRecordingBusy} />}
+      {view === 'references' && <GamingOverview />}
       {view === 'local' && <>
       <h2>{t('gaming.synthetic')}</h2>
       <p className="subtitle">{t('forge.explanation')}</p>

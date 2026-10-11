@@ -36,6 +36,7 @@
 .gaming-block summary { cursor: pointer; font-weight: 700; }
 .gaming-workbench .sub { line-height: 1.6; }
 .gaming-workbench a.btn { text-decoration: none; }
+.reference-address { display: block; overflow-wrap: anywhere; user-select: text; font-size: 12px; }
 
 * {
   margin: 0;

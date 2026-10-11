@@ -18,7 +18,7 @@ export default function GamingReady(): React.JSX.Element {
     const failed = (label: string): void => add(t('ready.failed', label), true)
     try {
       const [report, details, live, network, reboot] = await Promise.allSettled([
-        window.api.getSystemReport(), window.api.getDetailedInfo(), window.api.getLiveStats(),
+        window.api.getSystemReport(), window.api.getDisplays(), window.api.getLiveStats(),
         window.api.getNetInfo(), window.api.checkPendingReboot()
       ])
       if (live.status === 'fulfilled') {
@@ -41,8 +41,8 @@ export default function GamingReady(): React.JSX.Element {
           } else failed(t('dash.battery'))
         }
       } else failed(t('dash.hardware'))
-      if (details.status === 'fulfilled' && details.value.displays.length) {
-        for (const display of details.value.displays) {
+      if (details.status === 'fulfilled' && details.value.length) {
+        for (const display of details.value) {
           add(t('ready.display', display.model || t('ready.unknown'),
             display.resX > 0 ? display.resX : t('ready.unknown'),
             display.resY > 0 ? display.resY : t('ready.unknown'),
